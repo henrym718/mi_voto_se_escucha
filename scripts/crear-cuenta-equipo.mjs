@@ -58,8 +58,10 @@ async function main() {
     console.log(`Cuenta creada: ${CORREO}`);
   }
 
-  // Asegurar el rol en la ciudad.
-  await fetch(`${URL_BASE}/rest/v1/admins`, {
+  // Asegurar el rol en la ciudad. Si esto falla hay que ENTERARSE: la cuenta
+  // entraría al login pero el panel la rechazaría por no estar en `admins`,
+  // que es exactamente el «el correo no funciona» más difícil de depurar.
+  const rol = await fetch(`${URL_BASE}/rest/v1/admins`, {
     method: 'POST',
     headers: { ...cabeceras, Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify({
@@ -70,6 +72,7 @@ async function main() {
       activo: true,
     }),
   });
+  if (!rol.ok) throw new Error(`/rest/v1/admins → HTTP ${rol.status} ${await rol.text()}`);
 
   console.log(`Rol de admin asegurado en ${ciudad.nombre}.`);
 }

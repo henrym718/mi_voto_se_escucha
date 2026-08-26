@@ -8,6 +8,13 @@
 -- en su propia migración.
 -- ============================================================================
 
+-- Extensiones del buscador (patrón Pronto): unaccent quita las tildes y
+-- pg_trgm aporta word_similarity para tolerar errores de tipeo. En `public` a
+-- propósito: las RPC fijan `search_path = public`, y con las extensiones en
+-- otro esquema sus funciones quedarían fuera de alcance.
+create extension if not exists unaccent with schema public;
+create extension if not exists pg_trgm with schema public;
+
 -- Rol del usuario autenticado dentro de una ciudad. null si no es del equipo.
 create or replace function public.rol_admin_en(p_ciudad_id uuid)
 returns text
@@ -172,6 +179,18 @@ as $$
       '[^a-z0-9]+', '-', 'g'
     )
   );
+$$;
+
+-- Normalización única de la búsqueda (patrón Pronto): minúsculas y sin tildes,
+-- para que «Aníbal» y «anibal» sean la misma cosa. La forma con regdictionary
+-- explícito es inmutable (la de un argumento depende del search_path), y solo
+-- una función inmutable puede usarse en índices el día que hagan falta.
+create or replace function public.fn_search_norm(p_texto text)
+returns text
+language sql
+immutable
+as $$
+  select lower(public.unaccent('public.unaccent'::regdictionary, coalesce(p_texto, '')));
 $$;
 
 comment on function public.rol_admin_en is 'Rol del usuario autenticado en una ciudad, o null si no es del equipo.';

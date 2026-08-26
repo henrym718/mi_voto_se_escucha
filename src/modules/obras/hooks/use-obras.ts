@@ -57,8 +57,14 @@ export function useRankingBarrio(ciudadelaId?: string | null, limite = 5) {
   });
 }
 
-/** Códigos que solo significan "este vecino todavía no está identificado". */
-const FALTA_IDENTIFICARSE = ['sin_sesion', 'vecino_no_registrado'];
+/**
+ * Códigos que significan "a este vecino le falta un paso de identidad". La hoja
+ * de verificación sabe retomar desde donde quedó: sin sesión pide el número, y
+ * con sesión pero sin ciudadela va directo al selector. Dejar `falta_ciudadela`
+ * fuera convertía el aviso en un callejón sin salida: el toast decía «elige tu
+ * ciudadela» y no había ningún lugar donde elegirla.
+ */
+const FALTA_IDENTIFICARSE = ['sin_sesion', 'vecino_no_registrado', 'falta_ciudadela'];
 
 export function useApoyar(onSinSesion?: () => void) {
   const queryClient = useQueryClient();

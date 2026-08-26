@@ -137,19 +137,51 @@ jobs:
       - name: Configurar auth
         env:
           SEND_SMS_HOOK_SECRET: ${{ secrets.PROD_SEND_SMS_HOOK_SECRET }}
+          # VARIABLE y no Secret (patrón Pronto): este dato hay que poder
+          # RELEERLO —un Secret no se puede— y no es la credencial de nadie
+          # real. En producción es OPCIONAL: vacía = cero números de prueba,
+          # que es el estado sano; cada par que se agregue es una puerta
+          # permanente en la base real, así que solo entra si de verdad hace
+          # falta (p. ej. la revisión de una tienda de apps).
+          TEST_OTP: ${{ vars.PROD_TEST_OTP }}
+          SITIO_URL: ${{ vars.PROD_SITIO_URL }}
         run: |
-          # En producción solo va el número del revisor, si hace falta uno.
-          # Cada número de prueba es una puerta que no gasta WhatsApp real.
+          # Las mismas guardas que staging: este paso muere ANTES del PATCH y
+          # diciendo qué arreglar, no con un 400 crudo a mitad del despliegue.
+          if [ -n "$TEST_OTP" ] && ! printf '%s' "$TEST_OTP" | grep -qE '^5939[0-9]{8}=[0-9]{6}(,5939[0-9]{8}=[0-9]{6})*$'; then
+            echo "::error::PROD_TEST_OTP mal escrita: cada par es 5939XXXXXXXX=NNNNNN (12 dígitos SIN «+» ni espacios, código de 6 dígitos), separados por comas."
+            exit 1
+          fi
+          if [ -n "$TEST_OTP" ] && printf '%s' "$TEST_OTP" | grep -qE '=(123456|000000|111111|654321)(,|$)'; then
+            echo "::error::El código de PROD_TEST_OTP es adivinable (123456 y parecidos). Ese par vive en producción: elige uno propio."
+            exit 1
+          fi
+          if ! printf '%s' "$SEND_SMS_HOOK_SECRET" | grep -qE '^v1,whsec_'; then
+            echo "::error::PROD_SEND_SMS_HOOK_SECRET debe tener el formato v1,whsec_<base64> (el que muestra Supabase → Authentication → Hooks)."
+            exit 1
+          fi
+          if [ -z "$SITIO_URL" ]; then
+            echo "::error::Falta la Variable PROD_SITIO_URL (la URL pública de producción, sin barra final)."
+            exit 1
+          fi
+
+          # sms_test_otp solo entra al JSON cuando hay números: mandarla vacía
+          # también vale (la limpia), pero así queda explícito el caso normal.
+          TEST_OTP_JSON=""
+          if [ -n "$TEST_OTP" ]; then
+            TEST_OTP_JSON=",
+            \"sms_test_otp\": \"$TEST_OTP\",
+            \"sms_test_otp_valid_until\": \"2099-01-01T00:00:00Z\""
+          fi
+
           cat > /tmp/auth.json <<EOF
           {
             "external_phone_enabled": true,
             "hook_send_sms_enabled": true,
             "hook_send_sms_uri": "https://${PROJECT_REF}.supabase.co/functions/v1/enviar-otp-whatsapp",
             "hook_send_sms_secrets": "$SEND_SMS_HOOK_SECRET",
-            "sms_test_otp": "${{ secrets.PROD_TEST_OTP }}",
-            "sms_test_otp_valid_until": "2099-01-01T00:00:00Z",
-            "site_url": "${{ vars.PROD_SITIO_URL }}",
-            "uri_allow_list": "${{ vars.PROD_SITIO_URL }},${{ vars.PROD_SITIO_URL }}/**"
+            "site_url": "$SITIO_URL",
+            "uri_allow_list": "$SITIO_URL,$SITIO_URL/**"${TEST_OTP_JSON}
           }
           EOF
           curl -sS -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
@@ -157,6 +189,16 @@ jobs:
             -H "Content-Type: application/json" \
             --data @/tmp/auth.json --fail-with-body
           rm -f /tmp/auth.json
+
+      # Mismo paso que en staging: el seed solo crea cuentas en local, así que
+      # la cuenta del equipo de la nube la provisiona el pipeline.
+      - name: Crear la cuenta del equipo
+        env:
+          ADMIN_CORREO: ${{ secrets.PROD_ADMIN_CORREO }}
+          ADMIN_CLAVE: ${{ secrets.PROD_ADMIN_CLAVE }}
+          SUPABASE_URL: https://${{ vars.PROD_PROJECT_REF }}.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SERVICE_ROLE_KEY }}
+        run: node scripts/crear-cuenta-equipo.mjs
 
       - name: Revisar avisos de seguridad de Supabase
         # No detiene el despliegue, pero deja en el registro cualquier tabla sin
