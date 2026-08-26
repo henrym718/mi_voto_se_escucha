@@ -20,7 +20,11 @@ export const SEGUNDOS_PARA_REENVIAR = 45;
 /** Error con un motivo que se le puede mostrar tal cual al vecino. */
 export class ErrorOtp extends Error {
   constructor(
-    public readonly motivo: 'demasiado_pronto' | 'numero_invalido' | 'desconocido',
+    public readonly motivo:
+      | 'demasiado_pronto'
+      | 'numero_invalido'
+      | 'canal_no_disponible'
+      | 'desconocido',
     mensaje: string,
     /** Segundos que faltan, cuando el servidor los informa. */
     public readonly esperaSegundos?: number,
@@ -65,8 +69,29 @@ export async function pedirCodigo(telefono: string): Promise<void> {
   if (error.status === 429) {
     throw new ErrorOtp('demasiado_pronto', 'Espera un momento antes de pedir otro código.');
   }
-  if (error.message.toLowerCase().includes('phone')) {
-    throw new ErrorOtp('numero_invalido', 'Ese número no parece válido. Revísalo e intenta otra vez.');
+
+  // El orden importa. "Phone logins are disabled" y "Unsupported phone
+  // provider" también contienen la palabra "phone", y culpar al número por
+  // ellos manda al vecino a corregir algo que no está mal mientras el problema
+  // real es de configuración del ambiente. Costó horas averiguarlo una vez.
+  const mensaje = error.message.toLowerCase();
+  const esDeConfiguracion =
+    mensaje.includes('disabled') ||
+    mensaje.includes('unsupported') ||
+    mensaje.includes('provider') ||
+    mensaje.includes('not enabled');
+
+  if (esDeConfiguracion) {
+    throw new ErrorOtp(
+      'canal_no_disponible',
+      'La verificación por WhatsApp no está disponible en este momento. No es tu número: avísale al equipo.',
+    );
+  }
+  if (mensaje.includes('phone') || mensaje.includes('format')) {
+    throw new ErrorOtp(
+      'numero_invalido',
+      'Ese número no parece válido. Revísalo e intenta otra vez.',
+    );
   }
   throw new ErrorOtp('desconocido', 'No pudimos enviar el código. Intenta otra vez en un momento.');
 }
