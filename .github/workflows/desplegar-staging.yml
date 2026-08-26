@@ -68,7 +68,7 @@ jobs:
         run: supabase start
 
       - name: Baterías de smokes
-        run: ./scripts/run-smokes.sh
+        run: bash ./scripts/run-smokes.sh
         env:
           MVSE_DB_CONTAINER: supabase_db_mivotoseescucha
 
@@ -171,4 +171,4 @@ jobs:
       - name: Verificar staging con los smokes (contra la base real)
         env:
           MVSE_DB_URL: ${{ secrets.STAGING_DB_URL }}
-        run: ./scripts/run-smokes.sh
+        run: bash ./scripts/run-smokes.sh
