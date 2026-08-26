@@ -15,6 +15,19 @@
 -- Poder entrar al esquema es requisito de todo lo demás.
 grant usage on schema public to anon, authenticated, service_role;
 
+-- ── Igualar la nube con lo local ─────────────────────────────────────────────
+-- En la nube de Supabase, las tablas creadas por `postgres` pueden nacer con
+-- privilegios ya repartidos a anon/authenticated (default privileges legados);
+-- en local, con la CLI nueva, no. smoke-rls C3/C4 lo detectó en staging: el
+-- anónimo tenía UPDATE sobre obras aunque este archivo nunca se lo dio (las
+-- filas seguían a salvo por RLS, pero una capa de defensa estaba caída y los
+-- smokes pasaban en un mundo y fallaban en el otro). Se revoca TODO y las
+-- líneas de abajo vuelven a abrir exactamente lo necesario, igual en ambos.
+revoke all on all tables    in schema public from anon, authenticated;
+revoke all on all sequences in schema public from anon, authenticated;
+alter default privileges in schema public revoke all on tables    from anon, authenticated;
+alter default privileges in schema public revoke all on sequences from anon, authenticated;
+
 -- ------------------------------------------------ catálogo público: lectura --
 -- Mirar no exige registrarse: el anónimo ve la ciudad, sus barrios, sus
 -- categorías, sus estados y las obras aprobadas. Es la base de la conversión.

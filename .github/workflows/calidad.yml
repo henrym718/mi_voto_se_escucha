@@ -10,14 +10,13 @@
 name: Calidad
 
 on:
-  # Solo las ramas de destino. `develop` NO va aquí: empujar a develop con su
-  # PR abierto emite los dos eventos y el workflow corría dos veces. El
-  # `concurrency` no los junta porque github.ref vale refs/heads/develop en uno
-  # y refs/pull/N/merge en el otro, así que caen en grupos distintos.
-  # Con esto, cada cambio se revisa una vez: en el PR, y otra al fusionar.
+  # SOLO las ramas de destino, y SOLO por push. Sin `pull_request`: un PR desde
+  # develop disparaba una corrida más (github.ref = refs/pull/N/merge, grupo de
+  # concurrency distinto) y el trabajo diario en develop no debe encender nada.
+  # Cada cambio se revisa UNA vez: al aterrizar en staging, y otra al llegar a
+  # main. Para revisar una rama a mano, "Run workflow" (workflow_dispatch).
   push:
     branches: [staging, main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
