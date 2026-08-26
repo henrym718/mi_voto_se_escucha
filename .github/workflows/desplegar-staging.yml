@@ -1,0 +1,151 @@
+# =============================================================================
+# Staging. Se dispara al empujar a `staging`.
+#
+# La base se DESTRUYE y se reconstruye entera en cada despliegue: en staging
+# eso es una virtud, porque garantiza que las migraciones funcionan desde cero
+# y no solo encadenadas sobre lo que ya había.
+#
+# La parte de base de datos corre SOLO si el cambio toca supabase/. Un ajuste
+# de interfaz no tiene por qué resetear nada ni volver a subir funciones.
+# =============================================================================
+
+name: Desplegar a staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: staging
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------- calidad --
+  calidad:
+    name: Tipos, lint y compilación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITIO_URL: ${{ vars.STAGING_SITIO_URL }}
+
+  # ------------------------------------------------------ pruebas de la base --
+  # Corren contra un Supabase local levantado en el propio runner: las suites
+  # van envueltas en transacciones con rollback, así que no ensucian nada.
+  pruebas:
+    name: Pruebas de la base
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.modified, 'supabase/') || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+      - name: Baterías de smokes
+        run: ./scripts/run-smokes.sh
+        env:
+          MVSE_DB_CONTAINER: supabase_db_mivotoseescucha
+      - name: Recorrido del vecino de punta a punta
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" > .env.ci
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase status -o json | jq -r .ANON_KEY)" >> .env.ci
+          echo "NEXT_PUBLIC_CIUDAD_POR_DEFECTO=el-triunfo" >> .env.ci
+          node --env-file=.env.ci scripts/e2e-vecino.mjs
+
+  # ----------------------------------------------------------- base de datos --
+  base_de_datos:
+    name: Base de datos y funciones
+    runs-on: ubuntu-latest
+    needs: [calidad, pruebas]
+    if: contains(github.event.head_commit.modified, 'supabase/') || github.event_name == 'workflow_dispatch'
+    env:
+      PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
+      DB_URL: ${{ secrets.STAGING_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Reconstruir la base desde cero
+        run: supabase db reset --db-url "$DB_URL" --yes
+
+      - name: Guardar secretos en el Vault
+        # El cron los lee de aquí. Se borran y se vuelven a crear en cada
+        # despliegue para que no queden valores viejos de un ambiente anterior.
+        run: |
+          psql "$DB_URL" -c "delete from vault.secrets where name in ('url_base_funciones','secreto_worker');"
+          psql "$DB_URL" -c "select vault.create_secret('https://${PROJECT_REF}.supabase.co/functions/v1', 'url_base_funciones');"
+          psql "$DB_URL" -c "select vault.create_secret('${{ secrets.STAGING_WORKER_SECRET }}', 'secreto_worker');"
+
+      - name: Inyectar secretos a las Edge Functions
+        env:
+          KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
+          KAPSO_PHONE_NUMBER_ID: ${{ secrets.KAPSO_PHONE_NUMBER_ID }}
+          SEND_SMS_HOOK_SECRET: ${{ secrets.STAGING_SEND_SMS_HOOK_SECRET }}
+          WORKER_SECRET: ${{ secrets.STAGING_WORKER_SECRET }}
+        run: |
+          # Nada de esto se escribe a mano en el panel de Supabase: si un valor
+          # solo vive en la interfaz, se pierde en el siguiente reset.
+          {
+            echo "KAPSO_API_KEY=\"$KAPSO_API_KEY\""
+            echo "KAPSO_PHONE_NUMBER_ID=\"$KAPSO_PHONE_NUMBER_ID\""
+            echo "KAPSO_TEMPLATE_PREFIX=\"mvse_staging\""
+            echo "KAPSO_TEMPLATE_LANG=\"es\""
+            echo "KAPSO_OTP_TEMPLATE=\"mvse_staging_otp\""
+            echo "SEND_SMS_HOOK_SECRET=\"$SEND_SMS_HOOK_SECRET\""
+            echo "WORKER_SECRET=\"$WORKER_SECRET\""
+            echo "APP_BASE_URL=\"${{ vars.STAGING_SITIO_URL }}\""
+          } > /tmp/funciones.env
+          supabase secrets set --env-file /tmp/funciones.env --project-ref "$PROJECT_REF"
+          rm -f /tmp/funciones.env
+
+      - name: Desplegar Edge Functions
+        run: supabase functions deploy --project-ref "$PROJECT_REF"
+
+      - name: Configurar auth (teléfono, hook de WhatsApp y números de prueba)
+        env:
+          SEND_SMS_HOOK_SECRET: ${{ secrets.STAGING_SEND_SMS_HOOK_SECRET }}
+        run: |
+          # El hook es lo que hace que el código salga por WhatsApp en vez de
+          # por SMS. Sin registrarlo, Supabase intenta usar un proveedor de SMS
+          # que no existe y ningún código llega nunca.
+          cat > /tmp/auth.json <<EOF
+          {
+            "external_phone_enabled": true,
+            "hook_send_sms_enabled": true,
+            "hook_send_sms_uri": "https://${PROJECT_REF}.supabase.co/functions/v1/enviar-otp-whatsapp",
+            "hook_send_sms_secrets": "$SEND_SMS_HOOK_SECRET",
+            "sms_test_otp": "593990000001=123456,593990000002=123456",
+            "sms_test_otp_valid_until": "2099-01-01T00:00:00Z",
+            "site_url": "${{ vars.STAGING_SITIO_URL }}",
+            "uri_allow_list": "${{ vars.STAGING_SITIO_URL }},${{ vars.STAGING_SITIO_URL }}/**"
+          }
+          EOF
+          curl -sS -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/auth.json --fail-with-body
+          rm -f /tmp/auth.json
+
+      - name: Crear la cuenta del equipo
+        env:
+          ADMIN_CORREO: ${{ secrets.STAGING_ADMIN_CORREO }}
+          ADMIN_CLAVE: ${{ secrets.STAGING_ADMIN_CLAVE }}
+          SUPABASE_URL: https://${{ vars.STAGING_PROJECT_REF }}.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
+        run: node scripts/crear-cuenta-equipo.mjs

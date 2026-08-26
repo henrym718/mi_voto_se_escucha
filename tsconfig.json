@@ -30,5 +30,7 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // Las Edge Functions corren en Deno, no en Node: tienen sus propios tipos y
+  // sus importaciones por URL. Si entran aquí, cada `Deno.env` se ve como error.
+  "exclude": ["node_modules", "supabase/functions/**/*"]
 }

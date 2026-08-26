@@ -1,0 +1,17 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "1 · Home pública" },
+    { "file": "Obras.dc.html", "x": 480, "y": 0, "w": 390, "h": 844, "title": "2 · Ranking de obras" },
+    { "file": "DetalleObra.dc.html", "x": 960, "y": 0, "w": 390, "h": 844, "title": "3 · Detalle y seguimiento" },
+    { "file": "VerificarOTP.dc.html", "x": 1440, "y": 0, "w": 390, "h": 844, "title": "4 · OTP al votar" },
+    { "file": "CrearPedido.dc.html", "x": 1920, "y": 0, "w": 390, "h": 844, "title": "5 · Publicar pedido" },
+    { "file": "Eventos.dc.html", "x": 2400, "y": 0, "w": 390, "h": 844, "title": "6 · Eventos" },
+    { "file": "AdminKanban.dc.html", "x": 0, "y": 1000, "w": 1440, "h": 900, "title": "Panel admin · Tablero de estados" }
+  ],
+  "annotations": [
+    { "id": "flujo-ciudadano", "x": 0, "y": -150, "w": 420, "text": "FLUJO CIUDADANO (móvil)\nTodo se ve sin registro. El OTP aparece recién al votar, publicar o confirmar asistencia (pantalla 4)." },
+    { "id": "nota-otp", "x": 1440, "y": 930, "w": 340, "text": "El OTP es una hoja sobre la pantalla actual, no una página aparte: el vecino nunca pierde de vista lo que estaba apoyando." },
+    { "id": "flujo-admin", "x": 1560, "y": 1000, "w": 380, "text": "PANEL ADMIN (escritorio)\nKanban: arrastrar una obra a otra columna abre el panel derecho — mensaje + video/fotos opcionales — y al publicar notifica por WhatsApp a los votantes de esa obra. Las columnas son los estados configurables de cada ciudad." }
+  ],
+  "launch": { "view": "canvas" }
+}

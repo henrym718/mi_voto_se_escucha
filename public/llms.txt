@@ -1,0 +1,38 @@
+# Mi Voto Se Escucha
+
+> Plataforma cívica donde los vecinos de un cantón piden las obras que hacen
+> falta en su barrio y apoyan las de los demás. Las más apoyadas entran al plan
+> de obras del candidato o de la alcaldía.
+
+## Qué es
+
+Cada ciudad tiene su propio sitio. Un vecino elige su ciudadela, ve lo que ya
+pidieron sus vecinos y apoya con un toque. Si su problema no está, lo publica.
+Solo se pide el número de celular al momento de apoyar o publicar, nunca para
+mirar, y se verifica con un código por WhatsApp.
+
+## Cómo funciona el apoyo
+
+- Cada persona apoya con su número de teléfono verificado, una vez por obra.
+- Se apoya únicamente en la ciudadela donde se vive. Por eso el ranking de cada
+  barrio refleja a la gente de ese barrio.
+- Junto al número de apoyos se muestra qué porcentaje de los vecinos
+  verificados de esa ciudadela respalda cada obra.
+
+## Seguimiento
+
+Cada obra tiene una línea de tiempo pública con fechas. Cuando el equipo cambia
+el estado de una obra, quienes la apoyaron reciben un aviso por WhatsApp con el
+texto, las fotos o el video del avance.
+
+## Origen de los pedidos
+
+Algunos pedidos vienen de vecinos y otros están pre-cargados desde el plan de
+desarrollo del municipio, siempre citando el documento del que salieron. Ningún
+pedido tiene apoyos inventados: todos empiezan en cero.
+
+## Enlaces
+
+- /obras — todas las obras pedidas, con filtros por ciudadela y categoría
+- /publicar — publicar un pedido nuevo
+- /o/CODIGO — una obra concreta, con su seguimiento

@@ -1,0 +1,342 @@
+<title>Plan de Construcción</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --crema:#faf6ef;
+    --superficie:#ffffff;
+    --tinta:#1c1a20;
+    --tinta-2:#4a4852;
+    --tinta-3:#8b8993;
+    --linea:#ecebe6;
+    --teal:#00806b;
+    --teal-claro:#ddf2e7;
+    --arena:#fff3d6;
+    --ambar:#a9700c;
+    --lavanda:#ede8fb;
+    --morado:#5640d9;
+    --rosa-pal:#fcdfe9;
+    --rosa:#c23e6b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --crema:#161519;
+      --superficie:#1e1d23;
+      --tinta:#f0eeea;
+      --tinta-2:#b4b1ba;
+      --tinta-3:#86838d;
+      --linea:#302e36;
+      --teal:#4fd1b2;
+      --teal-claro:#17342e;
+      --arena:#332b1a;
+      --ambar:#e0aa4d;
+      --lavanda:#241f3a;
+      --morado:#a99bff;
+      --rosa-pal:#33212a;
+      --rosa:#f090b0;
+    }
+  }
+  :root[data-theme="dark"]{
+    --crema:#161519;
+    --superficie:#1e1d23;
+    --tinta:#f0eeea;
+    --tinta-2:#b4b1ba;
+    --tinta-3:#86838d;
+    --linea:#302e36;
+    --teal:#4fd1b2;
+    --teal-claro:#17342e;
+    --arena:#332b1a;
+    --ambar:#e0aa4d;
+    --lavanda:#241f3a;
+    --morado:#a99bff;
+    --rosa-pal:#33212a;
+    --rosa:#f090b0;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--crema);
+    color:var(--tinta-2);
+    font-family:"Inter",system-ui,-apple-system,sans-serif;
+    font-size:16px;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:72ch;margin:0 auto;padding:4rem 1.5rem 6rem}
+  .eyebrow{
+    font-size:.72rem;
+    font-weight:700;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--tinta-3);
+    margin:0;
+  }
+  h1{
+    font-size:clamp(2rem,5.5vw,3rem);
+    font-weight:800;
+    letter-spacing:-.035em;
+    line-height:1.05;
+    color:var(--tinta);
+    margin:.5rem 0 .75rem;
+    text-wrap:balance;
+  }
+  .lede{font-size:1.06rem;color:var(--tinta-2);max-width:56ch;margin:0}
+  h2{
+    font-size:clamp(1.4rem,3.4vw,1.75rem);
+    font-weight:700;
+    letter-spacing:-.025em;
+    color:var(--tinta);
+    margin:3.5rem 0 .5rem;
+    text-wrap:balance;
+  }
+  h3{
+    font-size:1.02rem;
+    font-weight:600;
+    letter-spacing:-.01em;
+    color:var(--tinta);
+    margin:1.75rem 0 .35rem;
+  }
+  p{margin:.65rem 0}
+  strong{color:var(--tinta);font-weight:600}
+  ul{margin:.6rem 0;padding-left:1.15rem}
+  li{margin:.3rem 0}
+  li::marker{color:var(--tinta-3)}
+  hr{border:none;border-top:1px solid var(--linea);margin:3rem 0}
+  code{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    font-size:.86em;
+    background:var(--lavanda);
+    color:var(--morado);
+    padding:.1em .4em;
+    border-radius:5px;
+  }
+
+  .fase{
+    background:var(--superficie);
+    border:1px solid var(--linea);
+    border-radius:18px;
+    padding:1.4rem 1.5rem;
+    margin:1rem 0;
+  }
+  .fase-cab{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap;margin-bottom:.35rem}
+  .fase-num{
+    font-size:.7rem;
+    font-weight:700;
+    letter-spacing:.12em;
+    color:var(--teal);
+    background:var(--teal-claro);
+    padding:.25rem .6rem;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  .fase-tit{font-size:1.18rem;font-weight:700;letter-spacing:-.02em;color:var(--tinta)}
+  .entrega{
+    margin-top:.9rem;
+    padding-top:.8rem;
+    border-top:1px solid var(--linea);
+    font-size:.9rem;
+  }
+  .entrega strong{color:var(--teal)}
+
+  .hito{
+    background:var(--tinta);
+    color:var(--crema);
+    border-radius:18px;
+    padding:1.3rem 1.5rem;
+    margin:1.25rem 0;
+    text-align:center;
+  }
+  .hito b{
+    display:block;
+    font-size:1.15rem;
+    font-weight:700;
+    letter-spacing:-.02em;
+    color:var(--crema);
+    margin-bottom:.2rem;
+  }
+  .hito span{font-size:.92rem;color:var(--tinta-3)}
+
+  .nota{background:var(--arena);border-radius:14px;padding:1rem 1.25rem;margin:1.5rem 0}
+  .nota p{margin:.3rem 0;color:var(--tinta-2)}
+  .nota strong{color:var(--tinta)}
+
+  .discrepo{
+    background:var(--superficie);
+    border:1px solid var(--linea);
+    border-left:3px solid var(--rosa);
+    border-radius:0 14px 14px 0;
+    padding:1rem 1.25rem;
+    margin:1rem 0;
+  }
+  .discrepo p{margin:.25rem 0;font-size:.95rem}
+
+  .decision{
+    background:var(--superficie);
+    border:1px solid var(--linea);
+    border-radius:14px;
+    padding:1rem 1.25rem;
+    margin:.75rem 0;
+  }
+  .decision p{margin:.25rem 0;font-size:.94rem}
+
+  .tablewrap{overflow-x:auto;margin:1rem 0}
+  table{border-collapse:collapse;width:100%;font-size:.9rem}
+  th{
+    text-align:left;
+    font-size:.68rem;
+    font-weight:700;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--tinta-3);
+    padding:.4rem .7rem .5rem;
+    border-bottom:1px solid var(--tinta-3);
+    white-space:nowrap;
+  }
+  td{padding:.6rem .7rem;border-bottom:1px solid var(--linea);vertical-align:top}
+  td:first-child{color:var(--tinta);font-weight:600}
+  .cierre{font-size:.92rem;color:var(--tinta-3);margin-top:2.5rem}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Mi Voto Se Escucha · Piloto El Triunfo · versión recortada</p>
+  <h1>Plan de construcción</h1>
+  <p class="lede">Una lancha rápida, no un transatlántico. El plan se reordenó alrededor de una sola pregunta: qué es lo mínimo que hay que construir para sentarse con un candidato y cerrar el contrato. Todo lo demás espera a que haya alguien pagando.</p>
+
+  <hr>
+
+  <h2>Decisiones cerradas</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Tema</th><th>Decisión</th></tr>
+    <tr><td>Votos por persona</td><td>Ilimitados; el panel compensa con el porcentaje de vecinos de la ciudadela</td></tr>
+    <tr><td>Alcance del voto</td><td>Ve toda la ciudad, vota solo en su ciudadela</td></tr>
+    <tr><td>Pedidos nuevos</td><td>Cola de aprobación antes de publicarse</td></tr>
+    <tr><td>Comentarios</td><td>No hay. El apoyo es la única voz</td></tr>
+    <tr><td>Roles del panel</td><td>Admin, Editor, Candidato (solo lectura)</td></tr>
+    <tr><td>Teléfonos</td><td>Nunca visibles ni entregados. Solo agregados</td></tr>
+    <tr><td>Verificación</td><td>Solo teléfono con código por WhatsApp. Sin cédula, sin GPS, sin geocercas</td></tr>
+    <tr><td>Identidad</td><td>Genérica al inicio; el branding real se carga desde el panel</td></tr>
+    <tr><td>Infraestructura</td><td>Local durante el desarrollo; nube al cerrar el primer cliente</td></tr>
+  </table></div>
+
+  <h2>El corte: qué sale del plan</h2>
+  <p>Lo siguiente estaba en el plan anterior y se aplaza hasta que haya un cliente pagando y tracción real. No se elimina del producto — se elimina de la ruta hacia la primera venta.</p>
+  <ul>
+    <li><strong>Convocatorias con fechas</strong> — aportan urgencia y concentran votos, pero no hacen falta para cerrar. Se venden después como el ciclo de campaña.</li>
+    <li><strong>Gestor de contenido completo</strong> (equipo con perfiles, plan de trabajo, muro de fotos) — en la primera versión el portal lleva solo la portada con la cara del candidato. El resto es administración de contenido que Instagram ya le resuelve.</li>
+    <li><strong>Mapa de calor</strong> — impresiona en una demo, pero con lista cerrada de ciudadelas una tabla ordenada dice lo mismo. Si hace falta impacto visual, se colorea la lista de ciudadelas: 80% del efecto por 5% del trabajo.</li>
+    <li><strong>Modo Gestión y verificación ciudadana de obra terminada</strong> — solo tienen sentido cuando el cliente ya ganó. Es la renovación del contrato, no la venta inicial.</li>
+  </ul>
+
+  <div class="nota">
+    <p><strong>El estado "No viable" se elimina.</strong> Ningún candidato en campaña va a publicar en su propia página que la obra de un barrio no se puede hacer. Se sustituye por dos aterrizajes suaves que cumplen la misma función — que nada quede en silencio para siempre — sin costo político: <strong>"En estudio técnico"</strong> y <strong>"Proyectada a mediano plazo"</strong>.</p>
+  </div>
+
+  <h2>Dónde no conviene cortar</h2>
+
+  <div class="discrepo">
+    <p><strong>La seguridad de los datos se queda entera.</strong> Es cierto que al candidato no le importan las políticas de acceso de la base. Pero lo que le vendes es la credibilidad de un número, y si un rival puede inflar votos desde una consola, el producto vale cero y la referencia con otros partidos se quema. Las reglas de acceso y el anti-fraude no son perfeccionismo de ingeniería: son la línea que sostiene el precio.</p>
+  </div>
+
+  <div class="discrepo">
+    <p><strong>El "Asistiré" de los eventos no es un calendario.</strong> Publicar el mitin sí lo hace mejor Instagram, y por eso el calendario sale del plan. Pero la confirmación de asistencia atada a un teléfono verificado le dice al comando algo que ninguna red social le puede decir: <em>cuántos vecinos de Arbolito 2 van al sábado</em>. Eso es predicción de convocatoria y no existe en otro lado. Sale de la primera versión, pero se guarda como módulo de upsell, no se tira.</p>
+  </div>
+
+  <h2>El arranque en frío, resuelto sin inventar nada</h2>
+  <p>Una app cívica vacía no se vende: el candidato entra, ve cero pedidos y cierra la pestaña. La solución no es simular votos — eso sería fraude y destruye lo único que vendes. La solución salió de la investigación del cantón: <strong>el PDOT municipal documenta qué le falta a cada ciudadela</strong>, con nombre y apellido.</p>
+  <p>Se pre-cargan esas carencias como pedidos reales, con cero votos y citando la fuente: las 19 ciudadelas sin alcantarillado pluvial, los sectores sin agua potable, las calles de lastre. El vecino entra y ya encuentra su problema listo para apoyar en un toque, en vez de una página en blanco pidiéndole que redacte. Es honesto, resuelve el arranque en frío, y de paso demuestra en la primera reunión que sabes del cantón más que el propio comando.</p>
+
+  <hr>
+
+  <h2>Las fases</h2>
+
+  <div class="fase">
+    <div class="fase-cab">
+      <span class="fase-num">Fase 1</span>
+      <span class="fase-tit">La lancha</span>
+    </div>
+    <p>Todo lo que hace falta para que el candidato vea las cuatro cosas que pediste: su cara en la página, un vecino votando de verdad, el tablero de demanda por barrio, y el mensaje llegando al celular. Nada más.</p>
+    <ul>
+      <li>Base de datos mínima con sus reglas de acceso y el anti-fraude: un voto por teléfono por obra, solo números del país, tope de códigos por hora, alerta de ráfagas.</li>
+      <li>Ciudadelas reales de El Triunfo y pedidos pre-cargados desde el PDOT.</li>
+      <li>Portada con el banner, la foto y el video del candidato. Portada, no gestor de contenido.</li>
+      <li>Elegir ciudadela, buscar antes de crear, y el botón grande de apoyar.</li>
+      <li>Código por WhatsApp solo al votar o publicar, con la sesión guardada para la próxima.</li>
+      <li>Panel: ranking por ciudadela con el porcentaje de vecinos, cola de aprobación, y cambio de estado con foto o video adjunto.</li>
+      <li>Aviso automático por WhatsApp a los votantes en cada cambio de estado.</li>
+      <li>Código QR de captación, listo para volantes y tarimas.</li>
+    </ul>
+    <p class="entrega"><strong>Al cerrar:</strong> una demo que se puede poner en el teléfono del candidato.</p>
+  </div>
+
+  <div class="hito">
+    <b>Aquí se vende</b>
+    <span>Sentarse con el candidato antes de escribir una línea más</span>
+  </div>
+
+  <div class="fase">
+    <div class="fase-cab">
+      <span class="fase-num">Fase 2</span>
+      <span class="fase-tit">Cerrar el bucle</span>
+    </div>
+    <p>Con contrato firmado, lo que convierte la demo en una herramienta que la gente usa todas las semanas.</p>
+    <ul>
+      <li>Aviso automático cuando una obra entra al Top 3 de su ciudadela.</li>
+      <li>Difusión segmentada por ciudadela y categoría, con alcance medido y costo estimado antes de enviar.</li>
+      <li>Freno de mano: tope de mensajes por persona por semana, baja en un toque, y los avisos de obras nunca mezclados con propaganda.</li>
+      <li>Compartir al grupo del barrio, con enlace que abre directo en la obra y se ve bien en WhatsApp.</li>
+      <li>Reenvíos automáticos de los mensajes que fallan.</li>
+    </ul>
+    <p class="entrega"><strong>Al cerrar:</strong> el vecino vuelve solo, sin que nadie lo persiga.</p>
+  </div>
+
+  <div class="fase">
+    <div class="fase-cab">
+      <span class="fase-num">Fase 3</span>
+      <span class="fase-tit">Salida a producción</span>
+    </div>
+    <ul>
+      <li>Ambientes de prueba y producción con despliegue automático y secretos gestionados.</li>
+      <li>Dominio propio de la ciudad.</li>
+      <li>Monitoreo de errores y velocidad.</li>
+      <li>Carga del contenido real del cliente, hecha por nosotros como parte del arranque.</li>
+      <li>Manual corto para el comando: aprobar, cambiar estados, difundir sin quemar el canal.</li>
+    </ul>
+    <p class="entrega"><strong>Al cerrar:</strong> la primera ciudad en el aire y el molde para vender la segunda en días.</p>
+  </div>
+
+  <div class="fase">
+    <div class="fase-cab">
+      <span class="fase-num">Fase 4</span>
+      <span class="fase-tit">Upsells, solo con tracción</span>
+    </div>
+    <p>Cada uno de estos es una conversación de venta aparte, no una promesa incluida.</p>
+    <ul>
+      <li>Confirmación de asistencia a eventos con predicción de convocatoria por sector.</li>
+      <li>Convocatorias con fechas y página de resultados compartible.</li>
+      <li>Gestor de contenido completo del portal.</li>
+      <li>Modo Gestión: estados de ejecución, rendición de cuentas y verificación ciudadana.</li>
+      <li>Compromisos públicos con marcador de cumplimiento.</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <h2>Las decisiones de negocio</h2>
+
+  <div class="decision">
+    <p><strong>Cobro en dos partes.</strong> Una tarifa alta de arranque (carga de datos, branding, configuración) más una mensualidad de mantenimiento, con los envíos de WhatsApp facturados aparte o con tope incluido. La tarifa de arranque es la que hace rentable cada ciudad nueva desde el día uno.</p>
+  </div>
+  <div class="decision">
+    <p><strong>La carga inicial la hacemos nosotros.</strong> Si se la dejas al comando no la hace, y cuando la app se vea vacía la culpa será de la herramienta. Se empaqueta como servicio de arranque y se cobra.</p>
+  </div>
+  <div class="decision">
+    <p><strong>El candidato es tu fuerza de ventas.</strong> Código QR en volantes, camisetas, tarimas y afiches. Sus brigadistas pagan el costo de conseguir tus usuarios, y a él le conviene porque cada registro es un contacto suyo.</p>
+  </div>
+  <div class="decision">
+    <p><strong>La base de datos es tuya.</strong> El padrón de vecinos verificados pertenece a la plataforma; el cliente accede mientras paga. Entregarla al terminar el contrato regala el activo que sostiene el negocio.</p>
+  </div>
+  <div class="decision">
+    <p><strong>Si el cliente pierde, la ciudad queda libre.</strong> El ganador hereda una base de vecinos ya construida, y ese es justamente el mejor argumento para venderle a él.</p>
+  </div>
+
+  <p class="cierre">Regla que gobierna el plan: si una funcionalidad no acerca la primera firma ni hace volver al vecino, no se construye todavía.</p>
+</div>
