@@ -32,13 +32,18 @@ begin perform set_config('request.jwt.claims', '', true); end; $$;
 
 create function pg_temp.crear_vecino(p_tel text, p_ciudadela uuid) returns uuid
 language plpgsql as $$
-declare v_id uuid := gen_random_uuid();
+declare
+  v_id uuid := gen_random_uuid();
+  -- Sufijo al azar: la base puede tener vecinos de verdad o de otra prueba, y
+  -- un número fijo chocaría con el índice único. Las suites no deben suponer
+  -- nunca que la base está vacía.
+  v_tel text := p_tel || floor(random() * 9000 + 1000)::text;
 begin
   insert into auth.users (instance_id, id, aud, role, phone, created_at, updated_at)
   values ('00000000-0000-0000-0000-000000000000', v_id, 'authenticated', 'authenticated',
-          p_tel, now(), now());
+          v_tel, now(), now());
   insert into public.vecinos (id, ciudad_id, ciudadela_id, telefono)
-  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, p_tel);
+  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, v_tel);
   return v_id;
 end; $$;
 

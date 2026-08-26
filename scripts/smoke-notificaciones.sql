@@ -46,11 +46,14 @@ end; $$;
 
 create function pg_temp.crear_vecino(p_tel text, p_ciudadela uuid) returns uuid
 language plpgsql as $$
-declare v_id uuid := pg_temp.crear_usuario();
+declare
+  v_id uuid := pg_temp.crear_usuario();
+  -- Ver la nota de arriba: sufijo al azar para no chocar con datos reales.
+  v_tel text := p_tel || floor(random() * 9000 + 1000)::text;
 begin
-  update auth.users set phone = p_tel where id = v_id;
+  update auth.users set phone = v_tel where id = v_id;
   insert into public.vecinos (id, ciudad_id, ciudadela_id, telefono)
-  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, p_tel);
+  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, v_tel);
   return v_id;
 end; $$;
 
@@ -68,7 +71,21 @@ begin
   select id into v_arb3 from public.ciudadelas where ciudad_id = v_ciudad and slug = 'arbolito-3';
   select id into v_est  from public.estados where ciudad_id = v_ciudad and slug = 'visitada';
   select id into v_cat  from public.categorias where ciudad_id = v_ciudad and slug = 'sanitario';
-  select id into v_obra from public.obras where ciudadela_id = v_arb2 and aprobada limit 1;
+  -- La obra se elige por su categoría a propósito: la prueba de segmentación
+  -- por interés depende de que los votantes hayan apoyado algo de 'sanitario'.
+  select id into v_obra from public.obras
+   where ciudadela_id = v_arb2 and categoria_id = v_cat and aprobada limit 1;
+
+  -- Esta suite cuenta destinatarios y porcentajes, así que necesita partir de
+  -- un estado conocido. Puede permitirse limpiarlo porque toda la suite vive
+  -- dentro de una transacción que termina en rollback: la base queda igual que
+  -- estaba. Sin esto, correr las pruebas sobre una base con vecinos reales
+  -- (staging, o después de una prueba de punta a punta) las pondría en rojo
+  -- por datos ajenos, no por errores.
+  delete from public.notificaciones;
+  delete from public.votos;
+  delete from public.vecinos;
+
 
   v_editor    := pg_temp.crear_admin('editor');
   v_candidato := pg_temp.crear_admin('candidato');

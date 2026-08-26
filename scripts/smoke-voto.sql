@@ -35,13 +35,18 @@ end; $$;
 
 create function pg_temp.crear_vecino(p_tel text, p_ciudadela uuid) returns uuid
 language plpgsql as $$
-declare v_id uuid := gen_random_uuid();
+declare
+  v_id uuid := gen_random_uuid();
+  -- Sufijo al azar: la base puede tener vecinos de verdad o de otra prueba, y
+  -- un número fijo chocaría con el índice único. Las suites no deben suponer
+  -- nunca que la base está vacía.
+  v_tel text := p_tel || floor(random() * 9000 + 1000)::text;
 begin
   insert into auth.users (instance_id, id, aud, role, phone, created_at, updated_at)
   values ('00000000-0000-0000-0000-000000000000', v_id, 'authenticated', 'authenticated',
-          p_tel, now(), now());
+          v_tel, now(), now());
   insert into public.vecinos (id, ciudad_id, ciudadela_id, telefono)
-  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, p_tel);
+  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, v_tel);
   return v_id;
 end; $$;
 
@@ -66,6 +71,17 @@ begin
   select id into v_arb3 from public.ciudadelas where ciudad_id = v_ciudad and slug = 'arbolito-3';
   select id into v_obra2 from public.obras where ciudadela_id = v_arb2 and aprobada limit 1;
   select id into v_obra3 from public.obras where ciudadela_id = v_arb3 and aprobada limit 1;
+
+  -- Esta suite cuenta destinatarios y porcentajes, así que necesita partir de
+  -- un estado conocido. Puede permitirse limpiarlo porque toda la suite vive
+  -- dentro de una transacción que termina en rollback: la base queda igual que
+  -- estaba. Sin esto, correr las pruebas sobre una base con vecinos reales
+  -- (staging, o después de una prueba de punta a punta) las pondría en rojo
+  -- por datos ajenos, no por errores.
+  delete from public.notificaciones;
+  delete from public.votos;
+  delete from public.vecinos;
+
 
   v_vecino2  := pg_temp.crear_vecino('+593991000001', v_arb2);
   v_vecino2b := pg_temp.crear_vecino('+593991000002', v_arb2);

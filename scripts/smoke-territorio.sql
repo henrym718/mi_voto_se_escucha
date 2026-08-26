@@ -115,9 +115,16 @@ begin
   select count(*) into v_n from public.obras where ciudad_id = v_ciudad and origen = 'pdot';
   perform pg_temp.chk('D1 — hay 40+ pedidos pre-cargados del PDOT', v_n >= 40, v_n::text);
 
-  -- D2 -- NINGUNA tiene apoyos simulados: eso sería fraude -----------------
-  select count(*) into v_n from public.obras where ciudad_id = v_ciudad and origen = 'pdot' and apoyos <> 0;
-  perform pg_temp.chk('D2 — ninguna obra del PDOT tiene apoyos inventados', v_n = 0, v_n || ' con apoyos');
+  -- D2 -- ningún apoyo sale de la nada -------------------------------------
+  -- El contador de cada obra tiene que cuadrar con sus votos reales. Es la
+  -- forma robusta de comprobar que nadie fabrica apoyos: vale igual con la
+  -- base recién sembrada que con meses de uso encima, y de paso detecta si el
+  -- contador se desfasó por un cambio en los triggers.
+  select count(*) into v_n
+    from public.obras o
+   where o.ciudad_id = v_ciudad
+     and o.apoyos <> (select count(*) from public.votos v where v.obra_id = o.id);
+  perform pg_temp.chk('D2 — ningún apoyo existe sin su voto detrás', v_n = 0, v_n || ' obras descuadradas');
 
   -- D3 -- todas citan su fuente --------------------------------------------
   select count(*) into v_n from public.obras

@@ -50,11 +50,14 @@ end; $$;
 
 create function pg_temp.crear_vecino(p_tel text, p_ciudadela uuid) returns uuid
 language plpgsql as $$
-declare v_id uuid := pg_temp.crear_usuario();
+declare
+  v_id uuid := pg_temp.crear_usuario();
+  -- Ver la nota de arriba: sufijo al azar para no chocar con datos reales.
+  v_tel text := p_tel || floor(random() * 9000 + 1000)::text;
 begin
-  update auth.users set phone = p_tel where id = v_id;
+  update auth.users set phone = v_tel where id = v_id;
   insert into public.vecinos (id, ciudad_id, ciudadela_id, telefono)
-  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, p_tel);
+  values (v_id, (select id from public.ciudades where slug = 'el-triunfo'), p_ciudadela, v_tel);
   return v_id;
 end; $$;
 
@@ -73,6 +76,17 @@ begin
   select id into v_cat from public.categorias where ciudad_id = v_ciudad and slug = 'seguridad';
   select id into v_est_comprometida from public.estados where ciudad_id = v_ciudad and slug = 'comprometida';
   select id into v_est_visitada from public.estados where ciudad_id = v_ciudad and slug = 'visitada';
+
+  -- Esta suite cuenta destinatarios y porcentajes, así que necesita partir de
+  -- un estado conocido. Puede permitirse limpiarlo porque toda la suite vive
+  -- dentro de una transacción que termina en rollback: la base queda igual que
+  -- estaba. Sin esto, correr las pruebas sobre una base con vecinos reales
+  -- (staging, o después de una prueba de punta a punta) las pondría en rojo
+  -- por datos ajenos, no por errores.
+  delete from public.notificaciones;
+  delete from public.votos;
+  delete from public.vecinos;
+
 
   v_admin     := pg_temp.crear_admin('admin');
   v_editor    := pg_temp.crear_admin('editor');
@@ -189,14 +203,21 @@ begin
     (v_r ->> 'notificados')::integer = 0, v_r ->> 'notificados');
 
   -- D: la cola de aprobación ----------------------------------------------------
+  -- Se mide el CRECIMIENTO de la cola, no su tamaño: la base puede traer
+  -- pedidos pendientes de antes y eso no es un error de la aplicación.
+  perform pg_temp.act_as(v_editor);
+  v_r := public.admin_cola_aprobacion(v_ciudad);
+  v_n := jsonb_array_length(v_r -> 'items');
+
   perform pg_temp.act_as(v_vecino1);
   v_r := public.obra_crear(v_arb2, v_cat, 'Cámaras de seguridad en la entrada');
   v_obra_cola := (v_r -> 'obra' ->> 'id')::uuid;
 
   perform pg_temp.act_as(v_editor);
   v_r := public.admin_cola_aprobacion(v_ciudad);
-  perform pg_temp.chk('D1 — el pedido nuevo aparece en la cola de aprobación',
-    jsonb_array_length(v_r -> 'items') = 1, jsonb_array_length(v_r -> 'items')::text);
+  perform pg_temp.chk('D1 — el pedido nuevo entra a la cola de aprobación',
+    jsonb_array_length(v_r -> 'items') = v_n + 1,
+    v_n || ' -> ' || jsonb_array_length(v_r -> 'items'));
 
   perform pg_temp.chk('D2 — la cola avisa cuántos parecidos ya existen en ese barrio',
     (v_r -> 'items' -> 0) ? 'similares', (v_r -> 'items' -> 0)::text);

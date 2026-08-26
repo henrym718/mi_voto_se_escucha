@@ -55,6 +55,47 @@ async function api(ruta, opciones = {}, token = null) {
 const rpc = (nombre, args, token) =>
   api(`/rest/v1/rpc/${nombre}`, { method: 'POST', body: JSON.stringify(args) }, token);
 
+/**
+ * Borra lo que dejó una corrida anterior de este mismo teléfono: los apoyos y
+ * los pedidos de prueba. Sin esto, la segunda corrida del día choca con el
+ * límite de tres pedidos diarios y el contador de apoyos ya no sube, y las
+ * suites SQL heredan datos que no son suyos.
+ *
+ * Necesita la clave de servicio; si no está, se avisa y se sigue. La prueba
+ * funciona igual la primera vez del día.
+ */
+async function limpiarCorridaAnterior() {
+  const servicio = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!servicio) {
+    console.log('  \x1b[90m(sin clave de servicio: no se limpian corridas anteriores)\x1b[0m\n');
+    return;
+  }
+
+  const cabeceras = { apikey: servicio, Authorization: `Bearer ${servicio}` };
+
+  const respuesta = await fetch(
+    `${URL_BASE}/rest/v1/vecinos?telefono=eq.${encodeURIComponent(TELEFONO)}&select=id`,
+    { headers: cabeceras },
+  );
+  const vecinos = await respuesta.json().catch(() => []);
+  if (!Array.isArray(vecinos) || vecinos.length === 0) return;
+
+  for (const { id } of vecinos) {
+    await fetch(`${URL_BASE}/rest/v1/votos?vecino_id=eq.${id}`, {
+      method: 'DELETE',
+      headers: cabeceras,
+    });
+    await fetch(`${URL_BASE}/rest/v1/obras?creador_id=eq.${id}`, {
+      method: 'DELETE',
+      headers: cabeceras,
+    });
+    await fetch(`${URL_BASE}/rest/v1/vecinos?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: cabeceras,
+    });
+  }
+}
+
 async function main() {
   if (!ANON) {
     console.error('Falta NEXT_PUBLIC_SUPABASE_ANON_KEY. Corre con: node --env-file=.env.local');
@@ -62,6 +103,8 @@ async function main() {
   }
 
   console.log(`\nRecorrido del vecino — ${CIUDAD} — ${TELEFONO}\n`);
+
+  await limpiarCorridaAnterior();
 
   // -- A. Mirar sin registrarse ---------------------------------------------
   const portada = await rpc('ciudad_portada', { p_ciudad_slug: CIUDAD });
@@ -150,7 +193,12 @@ async function main() {
   const obra = deSuBarrio.cuerpo?.items?.[0];
   chk('D1 — hay obras de su propia ciudadela', Boolean(obra?.id), obra?.titulo);
 
-  const antes = obra.apoyos;
+  // Se retira cualquier apoyo previo para que el delta sea el de esta corrida
+  // y no dependa de lo que hubiera antes en la base.
+  await rpc('obra_quitar_apoyo', { p_obra_id: obra.id }, token);
+  const estado = await rpc('obra_detalle', { p_obra_id: obra.id }, token);
+  const antes = estado.cuerpo?.obra?.apoyos ?? 0;
+
   const apoyo = await rpc('obra_apoyar', { p_obra_id: obra.id }, token);
   chk('D2 — puede apoyar una obra de su barrio', apoyo.cuerpo?.success === true, apoyo.cuerpo?.error_code ?? '');
   chk('D3 — el contador sube en uno', apoyo.cuerpo?.apoyos === antes + 1, `${antes} → ${apoyo.cuerpo?.apoyos}`);
