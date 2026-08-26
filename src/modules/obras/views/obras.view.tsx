@@ -50,7 +50,7 @@ export function ObrasView() {
   const nombreCategoria = categorias.find((c) => c.id === filtros.categoria)?.nombre;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-5 md:max-w-5xl md:px-6 md:pt-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-5 md:px-6 md:pt-8 lg:max-w-7xl">
       <div className="flex flex-col gap-1">
         <Titulo nivel="h1">Obras pedidas</Titulo>
         <Texto tamano="sm">
@@ -161,7 +161,7 @@ export function ObrasView() {
       </div>
 
       {/* --------------------------------------------------------- listado -- */}
-      <div className={cn('flex flex-col gap-3 transition-opacity md:grid md:grid-cols-2 md:gap-4', isPlaceholderData && 'opacity-55')}>
+      <div className={cn('flex flex-col gap-3 transition-opacity md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-3', isPlaceholderData && 'opacity-55')}>
         {isLoading
           ? [0, 1, 2, 3].map((i) => <TarjetaObraEsqueleto key={i} indice={i} />)
           : (data?.items ?? []).map((obra, i) => (
