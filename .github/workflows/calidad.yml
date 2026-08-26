@@ -10,8 +10,13 @@
 name: Calidad
 
 on:
+  # Solo las ramas de destino. `develop` NO va aquí: empujar a develop con su
+  # PR abierto emite los dos eventos y el workflow corría dos veces. El
+  # `concurrency` no los junta porque github.ref vale refs/heads/develop en uno
+  # y refs/pull/N/merge en el otro, así que caen en grupos distintos.
+  # Con esto, cada cambio se revisa una vez: en el PR, y otra al fusionar.
   push:
-    branches: [develop, staging, main]
+    branches: [staging, main]
   pull_request:
   workflow_dispatch:
 
