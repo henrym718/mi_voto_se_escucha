@@ -26,9 +26,9 @@ export interface ItemTop {
 }
 
 const PODIO: Record<number, string> = {
-  1: 'bg-ambar text-white',
-  2: 'bg-tinta text-crema',
-  3: 'bg-teal text-white',
+  1: 'bg-tinta text-white',
+  2: 'bg-tinta text-white',
+  3: 'bg-tinta text-white',
 };
 
 /**
@@ -53,7 +53,7 @@ export function TarjetaTop({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-40px' }}
       transition={{ duration: 0.35, delay: Math.min(indice, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      className="group border-linea relative flex gap-3.5 rounded-3xl border bg-white p-3.5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md md:gap-4 md:p-4"
+      className="group border-tinta ring-tinta/0 hover:ring-tinta/15 relative flex gap-3.5 rounded-3xl border bg-white p-3.5 ring-4 transition-all hover:-translate-y-0.5 md:gap-4 md:p-4"
     >
       {/* --------------------------------------------------- foto / puesto -- */}
       <Link
@@ -71,10 +71,8 @@ export function TarjetaTop({
             className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="bg-teal-pastel flex size-full items-center justify-center">
-            <span className="text-teal-hondo/40 cifra text-4xl font-extrabold">
-              {obra.posicion}
-            </span>
+          <div className="bg-crema-2 flex size-full items-center justify-center">
+            <span className="text-fg-faint cifra text-4xl font-extrabold">{obra.posicion}</span>
           </div>
         )}
         <span
@@ -93,18 +91,19 @@ export function TarjetaTop({
           <span className="text-fg-strong line-clamp-2 text-[0.9375rem] leading-snug font-semibold tracking-[-0.015em] md:text-[1.0625rem]">
             {obra.titulo}
           </span>
-          <span className="text-fg-subtle flex flex-wrap items-center gap-x-1.5 text-[0.75rem]">
+          {/* Semibold y en tinta media: en un teléfono al sol, el gris claro de
+              antes era ilegible y esta línea dice dónde queda la obra. */}
+          <span className="text-fg-muted flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[0.8125rem] font-semibold">
             {obra.ciudadela && (
               <span className="inline-flex items-center gap-0.5">
-                <MapPin className="size-3" />
+                <MapPin className="size-3.5" />
                 {obra.ciudadela}
               </span>
             )}
             {obra.ciudadela && obra.categoria && <span aria-hidden>·</span>}
             {obra.categoria && <span>{obra.categoria}</span>}
             <span
-              className="rounded-full px-2 py-0.5 text-[0.68rem] font-bold"
-              style={{ backgroundColor: `${obra.estado.color}1a`, color: obra.estado.color }}
+              className="border-linea text-fg-strong rounded-full border bg-white px-2 py-0.5 text-[0.68rem] font-bold"
             >
               {obra.estado.nombre}
             </span>
@@ -131,7 +130,7 @@ export function TarjetaTop({
                   delay: 0.2 + Math.min(indice, 6) * 0.05,
                   ease: [0.16, 1, 0.3, 1],
                 }}
-                className="bg-teal h-full rounded-full"
+                className="bg-tinta h-full rounded-full"
               />
             </div>
           </div>
@@ -154,7 +153,7 @@ export function TarjetaTop({
 export function TarjetaTopEsqueleto({ indice = 0 }: { indice?: number }) {
   return (
     <div
-      className="border-linea flex gap-4 rounded-3xl border bg-white p-4"
+      className="border-tinta flex gap-4 rounded-3xl border bg-white p-4"
       style={{ animationDelay: `${indice * 60}ms` }}
     >
       <div className="bg-crema-2 size-24 animate-pulse rounded-2xl md:size-28" />

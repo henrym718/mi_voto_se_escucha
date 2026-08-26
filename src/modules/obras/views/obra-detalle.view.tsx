@@ -127,7 +127,7 @@ export function ObraDetalleView({ codigo, inicial }: { codigo: string; inicial?:
           </div>
           {obra.vecinos_ciudadela > 0 && (
             <div className="flex flex-col items-end">
-              <span className="cifra text-teal text-[1.5rem] leading-none font-bold">
+              <span className="cifra text-fg-strong text-[1.5rem] leading-none font-bold">
                 {porcentaje(obra.porcentaje_ciudadela)}
               </span>
               <Texto tamano="xs" tono="tenue">
@@ -143,7 +143,7 @@ export function ObraDetalleView({ codigo, inicial }: { codigo: string; inicial?:
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(obra.porcentaje_ciudadela, 100)}%` }}
               transition={{ duration: 0.9, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="bg-teal h-full rounded-full"
+              className="bg-tinta h-full rounded-full"
             />
           </div>
         )}
@@ -263,7 +263,7 @@ function Galeria({ media }: { media: { tipo: string; url: string; miniatura?: st
               // eslint-disable-next-line @next/next/no-img-element
               <img src={m.miniatura} alt="" className="absolute inset-0 size-full object-cover opacity-70" />
             )}
-            <span className="bg-ambar relative flex size-10 items-center justify-center rounded-full">
+            <span className="bg-tinta relative flex size-10 items-center justify-center rounded-full">
               <Play className="ml-0.5 size-4 fill-white text-white" />
             </span>
           </a>

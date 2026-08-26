@@ -3,44 +3,47 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Todo gris es GRIS NEUTRO: croma 0. Cualquier croma sobre un tono cálido
+   (85 = amarillo) tiñe la pantalla de beige, y eso era lo que hacía ver
+   "fondo café" en media aplicación. Aquí no se vuelve a colar. */
 :root {
   /* ---------- Escala semántica de texto. PROHIBIDO text-gray-* ---------- */
-  --fg-strong: oklch(0.16 0.008 285);
-  --fg-default: oklch(0.24 0.008 285);
-  --fg-muted: oklch(0.44 0.008 285);
-  --fg-subtle: oklch(0.57 0.008 285);
-  --fg-faint: oklch(0.71 0.006 285);
-  --fg-inverse: oklch(0.99 0.002 90);
+  --fg-strong: oklch(0.15 0 0);
+  --fg-default: oklch(0.24 0 0);
+  --fg-muted: oklch(0.44 0 0);
+  --fg-subtle: oklch(0.57 0 0);
+  --fg-faint: oklch(0.71 0 0);
+  --fg-inverse: oklch(1 0 0);
 
   /* ---------- Base shadcn ---------- */
-  --background: oklch(0.976 0.008 85);
-  --foreground: oklch(0.19 0.008 285);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.18 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.008 285);
+  --card-foreground: oklch(0.18 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.008 285);
-  --primary: oklch(0.19 0.008 285);
-  --primary-foreground: oklch(0.99 0.002 90);
-  --secondary: oklch(0.945 0.008 85);
-  --secondary-foreground: oklch(0.24 0.008 285);
-  --muted: oklch(0.955 0.006 85);
-  --muted-foreground: oklch(0.5 0.008 285);
-  --accent: oklch(0.945 0.008 85);
-  --accent-foreground: oklch(0.24 0.008 285);
+  --popover-foreground: oklch(0.18 0 0);
+  --primary: oklch(0.18 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.965 0 0);
+  --secondary-foreground: oklch(0.24 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.965 0 0);
+  --accent-foreground: oklch(0.24 0 0);
   --destructive: oklch(0.58 0.19 24);
-  --destructive-foreground: oklch(0.99 0.002 90);
-  --border: oklch(0.915 0.007 85);
-  --input: oklch(0.925 0.007 85);
-  --ring: oklch(0.48 0.09 183);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.918 0 0);
+  --input: oklch(0.928 0 0);
+  --ring: oklch(0.18 0 0);
 
   --radius: 0.75rem;
 
-  /* ---------- Sombras suaves (1-2px de base) ---------- */
-  --shadow-xs: 0 1px 2px 0 hsl(30 12% 20% / 0.06);
-  --shadow-sm: 0 1px 2px 0 hsl(30 12% 20% / 0.08), 0 1px 2px -1px hsl(30 12% 20% / 0.08);
-  --shadow-md: 0 1px 2px 0 hsl(30 12% 20% / 0.09), 0 2px 6px -1px hsl(30 12% 20% / 0.1);
-  --shadow-lg: 0 1px 2px 0 hsl(30 12% 20% / 0.09), 0 8px 18px -4px hsl(30 12% 20% / 0.12);
-  --shadow-xl: 0 1px 2px 0 hsl(30 12% 20% / 0.09), 0 18px 36px -8px hsl(30 12% 20% / 0.16);
+  /* ---------- Sombras suaves (1-2px de base), en negro neutro ---------- */
+  --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.06);
+  --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.08), 0 1px 2px -1px hsl(0 0% 0% / 0.08);
+  --shadow-md: 0 1px 2px 0 hsl(0 0% 0% / 0.09), 0 2px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg: 0 1px 2px 0 hsl(0 0% 0% / 0.09), 0 8px 18px -4px hsl(0 0% 0% / 0.12);
+  --shadow-xl: 0 1px 2px 0 hsl(0 0% 0% / 0.09), 0 18px 36px -8px hsl(0 0% 0% / 0.16);
 }
 
 .dark {
@@ -106,14 +109,15 @@
   --color-fg-inverse: var(--fg-inverse);
 
   /* ---------- Paleta de la plataforma ----------
-     Crema + tinta + teal institucional + ámbar de acción.
-     El color del cliente entra aparte, como --color-marca. */
-  --color-crema: #faf6ef;
-  --color-crema-2: #f3eee3;
-  --color-tinta: #1c1a20;
-  --color-tinta-2: #4a4852;
-  --color-tinta-3: #8b8993;
-  --color-linea: #ecebe6;
+     Blanco + tinta negra. El color se reserva para el hero del candidato
+     (--color-marca), los estados y los pasteles de acento; las superficies
+     se separan con BORDE, no con tonos de fondo. */
+  --color-crema: #ffffff;
+  --color-crema-2: #f4f4f5;
+  --color-tinta: #111113;
+  --color-tinta-2: #45454a;
+  --color-tinta-3: #8a8a90;
+  --color-linea: #e4e4e7;
 
   --color-teal: #0d7d6c;
   --color-teal-hondo: #075a4e;

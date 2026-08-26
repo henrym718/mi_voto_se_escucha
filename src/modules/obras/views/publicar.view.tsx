@@ -92,13 +92,13 @@ export function PublicarView() {
           >
             {buscando ? (
               <div className="border-linea flex items-center justify-center gap-2 rounded-2xl border bg-white py-10">
-                <Loader2 className="text-teal size-5 animate-spin" />
+                <Loader2 className="text-fg-strong size-5 animate-spin" />
                 <Texto tamano="sm">Buscando pedidos parecidos…</Texto>
               </div>
             ) : similares.length > 0 ? (
               <>
-                <div className="bg-teal-pastel flex items-start gap-2.5 rounded-2xl px-4 py-3.5">
-                  <Info className="text-teal-hondo mt-0.5 size-4 shrink-0" />
+                <div className="bg-crema-2 flex items-start gap-2.5 rounded-2xl px-4 py-3.5">
+                  <Info className="text-fg-strong mt-0.5 size-4 shrink-0" />
                   <Texto tamano="sm" tono="normal">
                     Ya hay <strong>{similares.length}</strong>{' '}
                     {similares.length === 1 ? 'pedido parecido' : 'pedidos parecidos'} en este
@@ -205,7 +205,7 @@ function Paso({
         <span
           className={cn(
             'cifra flex size-7 items-center justify-center rounded-full text-[0.8125rem] font-bold transition-colors',
-            completo ? 'bg-teal text-white' : 'bg-crema-2 text-fg-muted',
+            completo ? 'bg-tinta text-white' : 'bg-crema-2 text-fg-muted',
           )}
         >
           {completo ? <Check className="size-4" /> : numero}
@@ -245,7 +245,7 @@ function SelectorPastillas({
           placeholder="Busca tu ciudadela…"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          className="border-linea focus:border-teal focus:ring-teal/20 h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-all focus:ring-3"
+          className="border-linea focus:border-tinta h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-all focus:ring-3"
         />
       )}
       <div className="flex flex-wrap gap-2">
@@ -257,8 +257,8 @@ function SelectorPastillas({
             className={cn(
               'min-h-11 rounded-full px-4 text-[0.875rem] font-medium transition-all active:scale-95',
               elegido === o.id
-                ? 'bg-teal text-white shadow-sm'
-                : 'border-linea hover:border-teal border bg-white',
+                ? 'bg-tinta text-white shadow-sm'
+                : 'border-linea hover:border-tinta border bg-white',
             )}
           >
             {o.nombre}
@@ -268,7 +268,7 @@ function SelectorPastillas({
           <button
             type="button"
             onClick={() => setVerTodas(true)}
-            className="text-teal min-h-11 px-2 text-[0.875rem] font-semibold"
+            className="text-fg-strong underline min-h-11 px-2 text-[0.875rem] font-semibold"
           >
             Ver las {opciones.length}
           </button>
@@ -298,7 +298,7 @@ function FormularioPedido({
 
   const camara = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
-  const crear = useCrearObra();
+  const crear = useCrearObra(onNecesitaSesion);
 
   const tituloValido = titulo.trim().length >= 8;
 
@@ -356,7 +356,7 @@ function FormularioPedido({
           value={titulo}
           onChange={(e) => setTitulo(e.target.value.slice(0, 120))}
           placeholder="Ej. Rejilla dañada en la calle 4"
-          className="border-linea focus:border-teal focus:ring-teal/20 h-13 w-full rounded-xl border px-4 text-base outline-none transition-all focus:ring-3"
+          className="border-linea focus:border-tinta h-13 w-full rounded-xl border px-4 text-base outline-none transition-all focus:ring-3"
         />
         <div className="flex items-center justify-between">
           <Texto tamano="xs" tono="tenue">
@@ -378,7 +378,7 @@ function FormularioPedido({
           onChange={(e) => setDescripcion(e.target.value.slice(0, 1000))}
           rows={4}
           placeholder="Desde cuándo pasa, a cuántas casas afecta, en qué parte exacta…"
-          className="border-linea focus:border-teal focus:ring-teal/20 w-full resize-none rounded-xl border px-4 py-3 text-base outline-none transition-all focus:ring-3"
+          className="border-linea focus:border-tinta w-full resize-none rounded-xl border px-4 py-3 text-base outline-none transition-all focus:ring-3"
         />
       </div>
 

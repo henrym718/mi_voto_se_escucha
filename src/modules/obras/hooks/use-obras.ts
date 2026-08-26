@@ -57,13 +57,24 @@ export function useRankingBarrio(ciudadelaId?: string | null, limite = 5) {
   });
 }
 
-export function useApoyar() {
+/** Códigos que solo significan "este vecino todavía no está identificado". */
+const FALTA_IDENTIFICARSE = ['sin_sesion', 'vecino_no_registrado'];
+
+export function useApoyar(onSinSesion?: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: servicio.apoyarObra,
     onSuccess: (respuesta, obraId) => {
       if (!respuesta.success) {
+        // La sesión puede haberse vencido entre que cargó la página y el
+        // vecino tocó Apoyar. Ahí un aviso es un callejón sin salida: lo que
+        // hace falta es volver a pedirle el número y seguir donde estaba.
+        if (FALTA_IDENTIFICARSE.includes(respuesta.error_code ?? '')) {
+          queryClient.invalidateQueries({ queryKey: ['identidad'] });
+          onSinSesion?.();
+          return;
+        }
         toast.error(mensajeDeError(respuesta.error_code));
         return;
       }
@@ -112,13 +123,18 @@ export function useQuitarApoyo() {
   });
 }
 
-export function useCrearObra() {
+export function useCrearObra(onSinSesion?: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: servicio.crearObra,
     onSuccess: (respuesta) => {
       if (!respuesta.success) {
+        if (FALTA_IDENTIFICARSE.includes(respuesta.error_code ?? '')) {
+          queryClient.invalidateQueries({ queryKey: ['identidad'] });
+          onSinSesion?.();
+          return;
+        }
         toast.error(mensajeDeError(respuesta.error_code));
         return;
       }

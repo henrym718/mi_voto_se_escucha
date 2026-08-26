@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Loader2, Plus } from 'lucide-react';
+import { Check, Loader2, ThumbsUp } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,9 @@ export function BotonApoyar({
   className,
   mostrarConteo = true,
 }: Props) {
-  const apoyar = useApoyar();
+  // El mismo callback sirve para los dos caminos: cuando no hay sesión en el
+  // navegador, y cuando la había pero el servidor ya no la reconoce.
+  const apoyar = useApoyar(onNecesitaSesion);
   const quitar = useQuitarApoyo();
   const cargando = apoyar.isPending || quitar.isPending;
 
@@ -51,12 +53,14 @@ export function BotonApoyar({
       aria-pressed={yaApoyada}
       className={cn('relative overflow-hidden', className)}
     >
+      {/* El pulgar arriba es el gesto de "yo también": se entiende sin leer,
+          que es justo lo que hace falta en el botón más importante. */}
       {cargando ? (
         <Loader2 className="animate-spin" />
       ) : yaApoyada ? (
-        <Check className="text-exito" />
+        <Check />
       ) : (
-        <Plus />
+        <ThumbsUp />
       )}
 
       <span>{yaApoyada ? 'Ya apoyaste' : 'Apoyar'}</span>

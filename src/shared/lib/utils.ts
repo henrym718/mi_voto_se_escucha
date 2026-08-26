@@ -28,6 +28,34 @@ export function normalizarTelefono(raw: string): string | null {
   return null;
 }
 
+/**
+ * Texto listo para comparar: sin tildes, sin mayúsculas y sin signos.
+ *
+ * Nadie escribe "Aníbal" con tilde en el buscador de su barrio, y tampoco tiene
+ * por qué: la tilde es del nombre, no de quien lo busca. `NFD` separa la letra
+ * de su acento, y U+0300–U+036F es el bloque de acentos sueltos que se borra.
+ */
+export function paraBuscar(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim();
+}
+
+/**
+ * ¿Este texto responde a esta búsqueda? Cada palabra escrita tiene que aparecer
+ * en algún lugar del texto, en cualquier orden: "zea anibal" encuentra
+ * "Aníbal Zea 1", y "anib" encuentra las tres Aníbal Zea de un tirón.
+ */
+export function coincide(texto: string, busqueda: string): boolean {
+  const termino = paraBuscar(busqueda);
+  if (!termino) return true;
+  const objetivo = paraBuscar(texto);
+  return termino.split(/\s+/).every((palabra) => objetivo.includes(palabra));
+}
+
 /** 099 123 4567 — cómo lo lee alguien de aquí, no +593991234567. */
 export function telefonoLegible(e164: string): string {
   const d = e164.replace(/\D/g, '');

@@ -41,13 +41,13 @@ export function Navegacion() {
                 href={href}
                 className={cn(
                   'relative rounded-full px-4 py-2 text-sm font-medium transition-colors',
-                  activo ? 'text-teal' : 'text-fg-muted hover:text-fg-default',
+                  activo ? 'text-fg-strong font-semibold' : 'text-fg-muted hover:text-fg-strong',
                 )}
               >
                 {activo && (
                   <motion.span
                     layoutId="nav-activo-desktop"
-                    className="bg-teal-pastel absolute inset-0 rounded-full"
+                    className="bg-crema-2 absolute inset-0 rounded-full"
                     transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                   />
                 )}
@@ -57,7 +57,7 @@ export function Navegacion() {
           })}
           <Link
             href={RUTAS.publico.publicar}
-            className="bg-ambar hover:bg-ambar-hondo ml-auto flex h-10 items-center gap-2 rounded-full px-5 text-sm font-semibold text-white transition-colors active:translate-y-px"
+            className="bg-tinta hover:bg-tinta-2 ml-auto flex h-10 items-center gap-2 rounded-full px-5 text-sm font-semibold text-white transition-colors active:translate-y-px"
           >
             <Plus className="size-4" />
             Publicar mi pedido
@@ -80,18 +80,21 @@ export function Navegacion() {
                 {activo && (
                   <motion.span
                     layoutId="nav-activo-movil"
-                    className="bg-teal absolute top-0 h-0.5 w-10 rounded-full"
+                    className="bg-tinta absolute top-0 h-0.5 w-10 rounded-full"
                     transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                   />
                 )}
                 <Icono
-                  className={cn('size-5 transition-colors', activo ? 'text-teal' : 'text-fg-subtle')}
+                  className={cn(
+                    'size-5 transition-colors',
+                    activo ? 'text-fg-strong' : 'text-fg-subtle',
+                  )}
                   strokeWidth={activo ? 2.3 : 2}
                 />
                 <span
                   className={cn(
                     'text-[0.6875rem] transition-colors',
-                    activo ? 'text-teal font-bold' : 'text-fg-subtle',
+                    activo ? 'text-fg-strong font-bold' : 'text-fg-subtle',
                   )}
                 >
                   {etiqueta}
@@ -103,10 +106,10 @@ export function Navegacion() {
             href={RUTAS.publico.publicar}
             className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-2"
           >
-            <span className="bg-ambar flex size-8 items-center justify-center rounded-full text-white shadow-sm">
+            <span className="bg-tinta flex size-8 items-center justify-center rounded-full text-white shadow-sm">
               <Plus className="size-5" strokeWidth={2.6} />
             </span>
-            <span className="text-ambar-hondo text-[0.6875rem] font-bold">Publicar</span>
+            <span className="text-fg-strong text-[0.6875rem] font-bold">Publicar</span>
           </Link>
         </div>
       </nav>

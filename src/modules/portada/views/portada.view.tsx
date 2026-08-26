@@ -13,7 +13,6 @@ import {
   Megaphone,
   Play,
   Plus,
-  Search,
   Users,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -148,7 +147,9 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
               transition={{ duration: 0.45, delay: 0.26, ease: suave }}
               className="mt-1 flex flex-wrap gap-3"
             >
-              <Button size="xl" variant="accion" asChild>
+              {/* Blanco sobre el hero de color: es el mayor contraste posible
+                  y no compite con la marca del candidato. */}
+              <Button size="xl" variant="claro" asChild>
                 <Link href={RUTAS.publico.publicar}>
                   <Plus className="size-5" />
                   Publicar mi pedido
@@ -158,7 +159,7 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
                 size="xl"
                 variant="outline"
                 asChild
-                className="border-white/30 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
+                className="border-white/40 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
               >
                 <Link href={RUTAS.publico.obras}>
                   Ver todas las obras
@@ -201,7 +202,7 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
                       className="absolute inset-0 size-full object-cover opacity-85 transition-transform duration-300 group-hover:scale-[1.03]"
                     />
                   )}
-                  <span className="bg-ambar relative flex size-16 items-center justify-center rounded-full shadow-lg transition-transform group-hover:scale-110">
+                  <span className="bg-tinta relative flex size-16 items-center justify-center rounded-full shadow-lg transition-transform group-hover:scale-110">
                     <Play className="ml-0.5 size-7 fill-white text-white" />
                   </span>
                   <span className="absolute bottom-3 left-4 text-[0.8125rem] font-medium text-white/90">
@@ -269,9 +270,7 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
               onClick={() => setSelectorAbierto(true)}
               className={cn(
                 'flex min-h-12 items-center gap-2.5 rounded-full border-2 px-5 text-[0.9375rem] font-semibold shadow-xs transition-all active:translate-y-px',
-                sector
-                  ? 'border-teal bg-teal-pastel text-teal-hondo'
-                  : 'border-tinta text-fg-strong bg-white hover:bg-crema-2',
+                'border-tinta text-fg-strong bg-white hover:bg-crema-2',
               )}
             >
               <MapPin className="size-4.5" />
@@ -347,7 +346,7 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
         />
         <div className="relative flex flex-col items-start gap-5 md:flex-row md:items-center md:justify-between md:gap-10">
           <div className="flex flex-col gap-2.5">
-            <span className="bg-ambar/15 text-ambar flex w-fit items-center gap-2 rounded-full px-3.5 py-1.5 text-[0.75rem] font-bold tracking-[0.1em] uppercase">
+            <span className="flex w-fit items-center gap-2 rounded-full bg-white/15 px-3.5 py-1.5 text-[0.75rem] font-bold tracking-[0.1em] text-white uppercase">
               <Megaphone className="size-3.5" />
               Tu voz cuenta
             </span>
@@ -359,7 +358,7 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
               lista de prioridades.
             </Texto>
           </div>
-          <Button size="xl" variant="accion" className="shrink-0" asChild>
+          <Button size="xl" variant="claro" className="shrink-0" asChild>
             <Link href={RUTAS.publico.publicar}>
               <Plus className="size-5" />
               Publicar mi pedido
@@ -367,16 +366,6 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
           </Button>
         </div>
       </motion.section>
-
-      {/* ========================================================= buscador == */}
-      <Link
-        href={RUTAS.publico.obras}
-        className="border-linea hover:border-teal flex items-center gap-3 rounded-full border bg-white px-5 py-4 shadow-xs transition-all hover:shadow-sm"
-      >
-        <Search className="text-fg-subtle size-[18px]" />
-        <span className="text-fg-subtle flex-1 text-[0.9375rem]">Buscar una obra o un barrio…</span>
-        <ArrowRight className="text-fg-faint size-4" />
-      </Link>
 
       <SelectorSector
         abierto={selectorAbierto}
