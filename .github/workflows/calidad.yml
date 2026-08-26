@@ -1,0 +1,42 @@
+# =============================================================================
+# Calidad: tipos, lint y compilación.
+#
+# Va SEPARADO de los despliegues a propósito. Los workflows de staging y
+# producción filtran por `paths` para no tocar la base en cambios de frontend;
+# si la calidad viviera dentro de ellos, ese mismo filtro dejaría los cambios
+# de interfaz sin typecheck ni build. Aquí no hay filtro: corre siempre.
+# =============================================================================
+
+name: Calidad
+
+on:
+  push:
+    branches: [develop, staging, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: calidad-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calidad:
+    name: Tipos, lint y compilación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      # El build necesita las variables públicas: sin ellas Next falla al
+      # prerenderizar. Las de staging sirven para validar cualquier rama.
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITIO_URL: ${{ vars.STAGING_SITIO_URL }}
