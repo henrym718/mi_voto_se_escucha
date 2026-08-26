@@ -4,13 +4,21 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Check, ChevronLeft, Loader2, MessageCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { toast } from 'sonner';
 
 import { Texto, Titulo } from '@/components/typography';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { coincide, normalizarTelefono, telefonoLegible } from '@/shared/lib/utils';
 
-import { useCuentaRegresiva, usePedirCodigo, useVerificarCodigo } from '../hooks/use-identidad';
+import {
+  useAsegurarVecino,
+  useCuentaRegresiva,
+  useElegirCiudadela,
+  usePedirCodigo,
+  useSesion,
+  useVerificarCodigo,
+} from '../hooks/use-identidad';
 import { SEGUNDOS_PARA_REENVIAR } from '../services/identidad.service';
 
 interface Ciudadela {
@@ -50,14 +58,17 @@ export function HojaVerificacion({
   motivo = 'general',
   origen = 'directo',
 }: Props) {
-  const [paso, setPaso] = useState<'telefono' | 'codigo' | 'ciudadela'>('telefono');
+  const [paso, setPaso] = useState<'revisando' | 'telefono' | 'codigo' | 'ciudadela'>('telefono');
   const [telefono, setTelefono] = useState('');
   const [codigo, setCodigo] = useState('');
   const [espera, setEspera] = useCuentaRegresiva(0);
   const campoCodigo = useRef<HTMLInputElement>(null);
 
+  const { data: sesion, isLoading: cargandoSesion } = useSesion();
   const pedir = usePedirCodigo();
   const verificar = useVerificarCodigo();
+  const asegurar = useAsegurarVecino();
+  const elegir = useElegirCiudadela();
 
   const e164 = normalizarTelefono(telefono);
   const telefonoValido = Boolean(e164);
@@ -65,6 +76,41 @@ export function HojaVerificacion({
   useEffect(() => {
     if (paso === 'codigo') setTimeout(() => campoCodigo.current?.focus(), 250);
   }, [paso]);
+
+  // Al abrirse con sesión viva, la hoja retoma donde el vecino quedó en vez de
+  // pedirle el número otra vez: quien verificó pero cerró sin elegir ciudadela
+  // cae directo al selector, y quien ya está completo ni ve la hoja. Sin esto,
+  // ese vecino a medias quedaba atrapado: cada acción le decía «elige tu
+  // ciudadela» y ningún lugar de la app se la dejaba elegir.
+  const evaluada = useRef(false);
+  useEffect(() => {
+    if (!abierta) {
+      evaluada.current = false;
+      return;
+    }
+    if (evaluada.current || cargandoSesion) return;
+    evaluada.current = true;
+    if (!sesion) return; // sin sesión el paso inicial ya es 'telefono'
+
+    let cancelada = false;
+    setPaso('revisando');
+    asegurar
+      .mutateAsync({ ciudadSlug, origen })
+      .then((vecino) => {
+        if (cancelada) return;
+        if (vecino.necesita_ciudadela) setPaso('ciudadela');
+        else onListo();
+      })
+      .catch(() => {
+        // La sesión existía en el navegador pero el servidor ya no la acepta:
+        // se cae al flujo completo, que es el único que puede repararla.
+        if (!cancelada) setPaso('telefono');
+      });
+    return () => {
+      cancelada = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abierta, cargandoSesion, sesion]);
 
   // El reinicio va aquí y no en un efecto: cerrar la hoja es un evento del
   // usuario, no una consecuencia de que cambie el estado.
@@ -117,6 +163,12 @@ export function HojaVerificacion({
                 paso === 'ciudadela' ? 'flex min-h-0 flex-col gap-4' : 'flex flex-col gap-5'
               }
             >
+              {paso === 'revisando' && (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="text-fg-muted size-6 animate-spin" />
+                </div>
+              )}
+
               {paso === 'telefono' && (
                 <>
                   <div className="flex flex-col gap-1.5">
@@ -247,16 +299,19 @@ export function HojaVerificacion({
                       propia ciudadela, y por eso el resultado vale.
                     </Texto>
                   </div>
+                  {/* La ciudadela se guarda con su propia RPC, con la sesión
+                      que ya existe. La versión anterior re-verificaba el OTP
+                      con el mismo código, y un código ya usado está consumido:
+                      el vecino elegía su ciudadela y recibía «código no
+                      válido», quedando registrado a medias para siempre. */}
                   <ListaCiudadelas
                     ciudadelas={ciudadelas}
                     onElegir={async (id) => {
-                      await verificar.mutateAsync({
-                        telefono: e164!,
-                        codigo,
-                        ciudadSlug,
-                        ciudadelaId: id,
-                        origen,
-                      });
+                      const r = await elegir.mutateAsync(id);
+                      if (!r.success) {
+                        toast.error('No pudimos guardar tu ciudadela. Intenta otra vez.');
+                        return;
+                      }
                       onListo();
                     }}
                   />

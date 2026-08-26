@@ -75,6 +75,27 @@ export function useVerificarCodigo() {
   });
 }
 
+/**
+ * Alta idempotente del vecino cuando YA hay sesión (no consume ningún código).
+ * Es lo que permite retomar a quien verificó su número pero cerró la hoja sin
+ * elegir ciudadela: se le pregunta solo lo que le falta, no todo de nuevo.
+ */
+export function useAsegurarVecino() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      ciudadSlug,
+      origen,
+    }: {
+      ciudadSlug: string;
+      origen?: 'directo' | 'qr' | 'compartido';
+    }) => servicio.asegurarVecino(ciudadSlug, null, origen),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: clavesIdentidad.todo });
+    },
+  });
+}
+
 export function useElegirCiudadela() {
   const queryClient = useQueryClient();
   return useMutation({

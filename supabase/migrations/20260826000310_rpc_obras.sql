@@ -40,12 +40,25 @@ declare
   v_ciudad_id uuid;
   v_items     jsonb;
   v_total     integer;
+  -- Buscador estilo Pronto: texto normalizado (sin tildes, minúsculas) y un
+  -- puntaje por obra. «anibal» encuentra «Aníbal» y «lastre» tolera «laste».
+  -- Con 1-2 letras solo vale el match directo: el trigram ahí es puro ruido.
+  v_qn     text;
+  v_umbral numeric;
 begin
   select c.id into v_ciudad_id from public.ciudades c where c.slug = p_ciudad_slug and c.activa;
   if v_ciudad_id is null then
     return jsonb_build_object('success', false, 'error_code', 'ciudad_no_encontrada');
   end if;
 
+  v_qn     := public.fn_search_norm(trim(coalesce(p_busqueda, '')));
+  v_umbral := case when length(v_qn) <= 2 then 0.99 else 0.35 end;
+
+  -- Puntaje por candidato (mismo esquema que el buscador de Pronto):
+  --   · el título contiene el texto → 1.0; word_similarity tolera faltas
+  --   · la ciudadela pesa 0.9 («anibal» encuentra las obras de Aníbal Zea)
+  --   · la descripción solo por match directo, a 0.6
+  -- Sin búsqueda, relevancia = 1.0: pasa el umbral y no altera el orden pedido.
   with base as (
     select o.*,
            cd.nombre as ciudadela_nombre,
@@ -56,7 +69,16 @@ begin
            e.nombre  as estado_nombre,
            e.slug    as estado_slug,
            e.color   as estado_color,
-           public.vecinos_en_ciudadela(o.ciudadela_id) as vecinos_ciudadela
+           public.vecinos_en_ciudadela(o.ciudadela_id) as vecinos_ciudadela,
+           case when v_qn = '' then 1.0 else greatest(
+             case when public.fn_search_norm(o.titulo) like '%' || v_qn || '%' then 1.0 else 0.0 end,
+             word_similarity(v_qn, public.fn_search_norm(o.titulo)),
+             0.9 * greatest(
+               case when public.fn_search_norm(cd.nombre) like '%' || v_qn || '%' then 1.0 else 0.0 end,
+               word_similarity(v_qn, public.fn_search_norm(cd.nombre))
+             ),
+             case when public.fn_search_norm(coalesce(o.descripcion, '')) like '%' || v_qn || '%' then 0.6 else 0.0 end
+           ) end as relevancia
       from public.obras o
       join public.ciudadelas cd on cd.id = o.ciudadela_id
       join public.categorias ct on ct.id = o.categoria_id
@@ -68,14 +90,8 @@ begin
        and (p_ciudadela_id is null or o.ciudadela_id = p_ciudadela_id)
        and (p_categoria_id is null or o.categoria_id = p_categoria_id)
        and (p_estado_id    is null or o.estado_id    = p_estado_id)
-       and (
-         p_busqueda is null or trim(p_busqueda) = ''
-         or o.titulo      ilike '%' || trim(p_busqueda) || '%'
-         or o.descripcion ilike '%' || trim(p_busqueda) || '%'
-         or cd.nombre     ilike '%' || trim(p_busqueda) || '%'
-       )
   )
-  select count(*)::integer into v_total from base;
+  select count(*)::integer into v_total from base where base.relevancia >= v_umbral;
 
   with base as (
     select o.*,
@@ -87,7 +103,16 @@ begin
            e.nombre  as estado_nombre,
            e.slug    as estado_slug,
            e.color   as estado_color,
-           public.vecinos_en_ciudadela(o.ciudadela_id) as vecinos_ciudadela
+           public.vecinos_en_ciudadela(o.ciudadela_id) as vecinos_ciudadela,
+           case when v_qn = '' then 1.0 else greatest(
+             case when public.fn_search_norm(o.titulo) like '%' || v_qn || '%' then 1.0 else 0.0 end,
+             word_similarity(v_qn, public.fn_search_norm(o.titulo)),
+             0.9 * greatest(
+               case when public.fn_search_norm(cd.nombre) like '%' || v_qn || '%' then 1.0 else 0.0 end,
+               word_similarity(v_qn, public.fn_search_norm(cd.nombre))
+             ),
+             case when public.fn_search_norm(coalesce(o.descripcion, '')) like '%' || v_qn || '%' then 0.6 else 0.0 end
+           ) end as relevancia
       from public.obras o
       join public.ciudadelas cd on cd.id = o.ciudadela_id
       join public.categorias ct on ct.id = o.categoria_id
@@ -99,14 +124,9 @@ begin
        and (p_ciudadela_id is null or o.ciudadela_id = p_ciudadela_id)
        and (p_categoria_id is null or o.categoria_id = p_categoria_id)
        and (p_estado_id    is null or o.estado_id    = p_estado_id)
-       and (
-         p_busqueda is null or trim(p_busqueda) = ''
-         or o.titulo      ilike '%' || trim(p_busqueda) || '%'
-         or o.descripcion ilike '%' || trim(p_busqueda) || '%'
-         or cd.nombre     ilike '%' || trim(p_busqueda) || '%'
-       )
   )
-  select coalesce(jsonb_agg(fila order by orden_apoyos, orden_reciente), '[]'::jsonb)
+  -- Buscando, manda la relevancia; sin búsqueda es constante y decide p_orden.
+  select coalesce(jsonb_agg(fila order by orden_relevancia, orden_apoyos, orden_reciente), '[]'::jsonb)
     into v_items
     from (
       select jsonb_build_object(
@@ -129,6 +149,7 @@ begin
                'estado', jsonb_build_object('id', b.estado_id, 'nombre', b.estado_nombre, 'slug', b.estado_slug, 'color', b.estado_color),
                'ya_apoyada', exists (select 1 from public.votos v where v.obra_id = b.id and v.vecino_id = auth.uid())
              ) as fila,
+             -b.relevancia as orden_relevancia,
              case when p_orden = 'apoyos' then -b.apoyos else 0 end as orden_apoyos,
              case
                when p_orden = 'recientes'   then extract(epoch from now() - b.creada_en)
@@ -136,6 +157,10 @@ begin
                else -b.apoyos
              end as orden_reciente
         from base b
+       where b.relevancia >= v_umbral
+       -- El order by va ANTES del limit/offset: sin él, la página 2 podría
+       -- repetir obras de la página 1 (el orden de un scan no está garantizado).
+       order by orden_relevancia, orden_apoyos, orden_reciente
        limit greatest(p_limite, 1)
       offset greatest(p_desde, 0)
     ) t;
