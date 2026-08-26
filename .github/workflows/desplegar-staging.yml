@@ -120,6 +120,11 @@ jobs:
       - name: Configurar auth (teléfono, hook de WhatsApp y números de prueba)
         env:
           SEND_SMS_HOOK_SECRET: ${{ secrets.STAGING_SEND_SMS_HOOK_SECRET }}
+          # Números con código fijo: entran sin gastar un WhatsApp real ni
+          # depender de que Meta haya aprobado la plantilla. Van como secreto y
+          # no escritos aquí para poder rotarlos sin tocar el repositorio.
+          # Formato: 593990000001=123456,593990000002=654321
+          TEST_OTP: ${{ secrets.STAGING_TEST_OTP }}
         run: |
           # El hook es lo que hace que el código salga por WhatsApp en vez de
           # por SMS. Sin registrarlo, Supabase intenta usar un proveedor de SMS
@@ -130,7 +135,7 @@ jobs:
             "hook_send_sms_enabled": true,
             "hook_send_sms_uri": "https://${PROJECT_REF}.supabase.co/functions/v1/enviar-otp-whatsapp",
             "hook_send_sms_secrets": "$SEND_SMS_HOOK_SECRET",
-            "sms_test_otp": "593990000001=123456,593990000002=123456",
+            "sms_test_otp": "$TEST_OTP",
             "sms_test_otp_valid_until": "2099-01-01T00:00:00Z",
             "site_url": "${{ vars.STAGING_SITIO_URL }}",
             "uri_allow_list": "${{ vars.STAGING_SITIO_URL }},${{ vars.STAGING_SITIO_URL }}/**"
