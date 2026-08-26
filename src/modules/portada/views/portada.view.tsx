@@ -222,40 +222,21 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
         transition={{ duration: 0.45, ease: suave }}
         className="grid grid-cols-3 gap-3 md:gap-5"
       >
+        {/* Blanco con borde negro, como Meetup: el color queda para el icono y
+            el número lleva la tinta. */}
         {[
-          {
-            valor: cifras.vecinos,
-            etiqueta: 'vecinos verificados',
-            fondo: 'bg-teal-pastel',
-            tinta: 'text-teal-hondo',
-            Icono: Users,
-          },
-          {
-            valor: cifras.obras,
-            etiqueta: 'obras pedidas',
-            fondo: 'bg-ambar-pastel',
-            tinta: 'text-ambar-hondo',
-            Icono: Landmark,
-          },
-          {
-            valor: cifras.apoyos,
-            etiqueta: 'apoyos sumados',
-            fondo: 'bg-lavanda',
-            tinta: 'text-morado',
-            Icono: HeartHandshake,
-          },
+          { valor: cifras.vecinos, etiqueta: 'vecinos verificados', Icono: Users },
+          { valor: cifras.obras, etiqueta: 'obras pedidas', Icono: Landmark },
+          { valor: cifras.apoyos, etiqueta: 'apoyos sumados', Icono: HeartHandshake },
         ].map((d) => (
           <div
             key={d.etiqueta}
-            className={cn('flex flex-col gap-1 rounded-3xl p-4 md:gap-2 md:p-7', d.fondo)}
+            className="border-tinta flex flex-col gap-2 rounded-3xl border-2 bg-white p-4 transition-transform hover:-translate-y-0.5 md:gap-3 md:p-7"
           >
-            <d.Icono className={cn('hidden size-5 md:block', d.tinta)} />
+            <d.Icono className="text-tinta size-7 md:size-9" strokeWidth={1.8} />
             <CifraAnimada
               valor={d.valor}
-              className={cn(
-                'cifra text-[1.5rem] leading-none font-extrabold md:text-[2.5rem]',
-                d.tinta,
-              )}
+              className="cifra text-tinta text-[1.5rem] leading-none font-extrabold md:text-[2.5rem]"
             />
             <span className="text-fg-muted text-[0.75rem] leading-tight font-medium md:text-[0.875rem]">
               {d.etiqueta}
