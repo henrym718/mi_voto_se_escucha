@@ -70,7 +70,7 @@ jobs:
         run: supabase start
 
       - name: Baterías de smokes
-        run: ./scripts/run-smokes.sh
+        run: bash ./scripts/run-smokes.sh
         env:
           MVSE_DB_CONTAINER: supabase_db_mivotoseescucha
 
