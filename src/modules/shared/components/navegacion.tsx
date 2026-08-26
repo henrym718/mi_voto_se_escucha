@@ -26,7 +26,7 @@ export function Navegacion() {
   return (
     <>
       {/* Barra superior — tablet y escritorio */}
-      <header className="border-linea bg-crema/85 sticky top-0 z-40 hidden border-b backdrop-blur-md md:block">
+      <header className="border-linea sticky top-0 z-40 hidden border-b bg-white/85 backdrop-blur-md md:block">
         <nav className="mx-auto flex h-16 max-w-7xl items-center gap-1 px-6">
           <Link href={RUTAS.publico.inicio} className="mr-4 flex flex-col leading-none">
             <span className="text-fg-strong text-[0.9375rem] font-extrabold tracking-[-0.02em]">

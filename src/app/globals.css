@@ -158,7 +158,9 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-crema text-fg-default font-sans antialiased;
+    /* Fondo blanco pleno, como Meetup: las superficies se separan con borde,
+       no con tonos de crema. */
+    @apply bg-white text-fg-default font-sans antialiased;
     /* Respeta la barra de estado y el gesto de inicio en móviles */
     padding-top: env(safe-area-inset-top);
   }
