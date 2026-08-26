@@ -270,6 +270,11 @@ max_frequency = "60s"
 "+593990000001" = "123456"
 "+593990000002" = "123456"
 "+593990000003" = "123456"
+# Los 090… son los mismos de staging (secreto STAGING_TEST_OTP), repetidos aquí
+# para que el mismo número sirva en local y no haya que recordar dos juegos.
+"+593900000001" = "123456"
+"+593900000002" = "123456"
+"+593900000003" = "123456"
 
 # Configure logged in session timeouts.
 # [auth.sessions]

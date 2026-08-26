@@ -21,6 +21,10 @@ interface Props {
   indice?: number;
 }
 
+/**
+ * Borde negro fino para que cada tarjeta se recorte del fondo blanco, y un
+ * anillo que crece al pasar por encima en vez de una sombra difusa.
+ */
 export function TarjetaObra({ obra, haySesion, onNecesitaSesion, posicion, indice = 0 }: Props) {
   return (
     <motion.article
@@ -34,23 +38,20 @@ export function TarjetaObra({ obra, haySesion, onNecesitaSesion, posicion, indic
         delay: Math.min(indice, 8) * 0.045,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="border-linea flex flex-col overflow-hidden rounded-2xl border bg-white shadow-xs transition-shadow hover:shadow-sm"
+      className="border-tinta ring-tinta/0 hover:ring-tinta/15 flex flex-col overflow-hidden rounded-2xl border bg-white ring-4 transition-all hover:-translate-y-0.5"
     >
       <Link href={RUTAS.publico.obra(obra.codigo)} className="flex flex-col gap-2.5 p-4 pb-3">
         <div className="flex flex-wrap items-center gap-2">
           {posicion !== undefined && posicion <= 3 && (
-            <span className="bg-ambar-pastel text-ambar-hondo cifra rounded-full px-2 py-0.5 text-[0.7rem] font-bold">
+            <span className="bg-tinta cifra rounded-full px-2 py-0.5 text-[0.7rem] font-bold text-white">
               #{posicion} del barrio
             </span>
           )}
-          <span
-            className="rounded-full px-2.5 py-0.5 text-[0.7rem] font-bold"
-            style={{ backgroundColor: `${obra.estado.color}1a`, color: obra.estado.color }}
-          >
+          <span className="border-linea text-fg-strong rounded-full border px-2.5 py-0.5 text-[0.7rem] font-bold">
             {obra.estado.nombre}
           </span>
-          <span className="text-fg-subtle flex items-center gap-1 text-[0.75rem]">
-            <MapPin className="size-3" />
+          <span className="text-fg-muted flex items-center gap-1 text-[0.8125rem] font-semibold">
+            <MapPin className="size-3.5" />
             {obra.ciudadela.nombre}
           </span>
         </div>
@@ -117,7 +118,7 @@ export function TarjetaObra({ obra, haySesion, onNecesitaSesion, posicion, indic
 export function TarjetaObraEsqueleto({ indice = 0 }: { indice?: number }) {
   return (
     <div
-      className="border-linea flex flex-col gap-3 rounded-2xl border bg-white p-4"
+      className="border-tinta flex flex-col gap-3 rounded-2xl border bg-white p-4"
       style={{ animationDelay: `${indice * 60}ms` }}
     >
       <div className="flex gap-2">

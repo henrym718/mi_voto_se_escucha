@@ -2,16 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { AnimatePresence, motion } from 'motion/react';
 import { Check, ChevronLeft, Loader2, MessageCircle } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 
-import { Titulo, Texto } from '@/components/typography';
+import { Texto, Titulo } from '@/components/typography';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
-import { normalizarTelefono, telefonoLegible } from '@/shared/lib/utils';
+import { coincide, normalizarTelefono, telefonoLegible } from '@/shared/lib/utils';
 
-import { SEGUNDOS_PARA_REENVIAR } from '../services/identidad.service';
 import { useCuentaRegresiva, usePedirCodigo, useVerificarCodigo } from '../hooks/use-identidad';
+import { SEGUNDOS_PARA_REENVIAR } from '../services/identidad.service';
 
 interface Ciudadela {
   id: string;
@@ -102,166 +102,167 @@ export function HojaVerificacion({
         <DrawerTitle className="sr-only">{TITULOS[motivo]}</DrawerTitle>
 
         <div className="mx-auto w-full max-w-md px-5 pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          {/* UN SOLO hijo, con `key={paso}`. Con `mode="wait"` AnimatePresence
+              admite exactamente un hijo: si se le pasan tres condicionales
+              hermanos se queda mostrando el primero y la hoja nunca avanza del
+              teléfono al código. Ese fue un fallo real, no un detalle. */}
           <AnimatePresence mode="wait" initial={false}>
-            {paso === 'telefono' && (
-              <motion.div
-                key="telefono"
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -12 }}
-                transition={{ duration: 0.18 }}
-                className="flex flex-col gap-5"
-              >
-                <div className="flex flex-col gap-1.5">
-                  <Titulo nivel="h2">{TITULOS[motivo]}</Titulo>
-                  <Texto tamano="sm">
-                    Lo usamos solo para saber que eres una persona real de la zona y avisarte
-                    cuando tu obra avance. No hay contraseñas ni correos.
-                  </Texto>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="telefono"
-                    className="text-fg-muted text-[0.7rem] font-bold tracking-[0.12em] uppercase"
-                  >
-                    Tu celular
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="border-linea flex h-14 items-center rounded-xl border bg-white px-4">
-                      <span className="text-fg-default text-base font-semibold">+593</span>
-                    </div>
-                    <input
-                      id="telefono"
-                      type="tel"
-                      inputMode="numeric"
-                      autoComplete="tel-national"
-                      placeholder="099 123 4567"
-                      value={telefono}
-                      onChange={(e) => setTelefono(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && telefonoValido && void enviarCodigo()}
-                      className="border-linea focus:border-teal focus:ring-teal/20 h-14 flex-1 rounded-xl border bg-white px-4 text-base font-semibold outline-none transition-all focus:ring-3"
-                    />
-                  </div>
-                  {telefono.length > 3 && !telefonoValido && (
-                    <Texto tamano="xs" tono="marca" className="text-peligro">
-                      Escribe un celular ecuatoriano, como 0991234567.
+            <motion.div
+              key={paso}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ duration: 0.18 }}
+              className={
+                paso === 'ciudadela' ? 'flex min-h-0 flex-col gap-4' : 'flex flex-col gap-5'
+              }
+            >
+              {paso === 'telefono' && (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <Titulo nivel="h2">{TITULOS[motivo]}</Titulo>
+                    <Texto tamano="sm">
+                      Lo usamos solo para saber que eres una persona real de la zona y avisarte
+                      cuando tu obra avance. No hay contraseñas ni correos.
                     </Texto>
-                  )}
-                </div>
+                  </div>
 
-                <Button
-                  size="xl"
-                  variant="institucional"
-                  disabled={!telefonoValido || pedir.isPending}
-                  onClick={() => void enviarCodigo()}
-                  className="w-full"
-                >
-                  {pedir.isPending ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <MessageCircle className="size-5" />
-                  )}
-                  Enviarme el código por WhatsApp
-                </Button>
-              </motion.div>
-            )}
+                  <div className="flex flex-col gap-2">
+                    <label
+                      htmlFor="telefono"
+                      className="text-fg-muted text-[0.7rem] font-bold tracking-[0.12em] uppercase"
+                    >
+                      Tu celular
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="border-linea flex h-14 items-center rounded-xl border bg-white px-4">
+                        <span className="text-fg-default text-base font-semibold">+593</span>
+                      </div>
+                      <input
+                        id="telefono"
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel-national"
+                        placeholder="099 123 4567"
+                        value={telefono}
+                        onChange={(e) => setTelefono(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === 'Enter' && telefonoValido && void enviarCodigo()
+                        }
+                        className="border-linea focus:border-tinta h-14 flex-1 rounded-xl border bg-white px-4 text-base font-semibold transition-all outline-none focus:ring-3"
+                      />
+                    </div>
+                    {telefono.length > 3 && !telefonoValido && (
+                      <Texto tamano="xs" tono="marca" className="text-peligro">
+                        Escribe un celular ecuatoriano, como 0991234567.
+                      </Texto>
+                    )}
+                  </div>
 
-            {paso === 'codigo' && (
-              <motion.div
-                key="codigo"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.18 }}
-                className="flex flex-col gap-5"
-              >
-                <button
-                  type="button"
-                  onClick={() => setPaso('telefono')}
-                  className="text-fg-muted hover:text-fg-default -ml-1 flex w-fit items-center gap-1 text-sm font-medium transition-colors"
-                >
-                  <ChevronLeft className="size-4" />
-                  Cambiar número
-                </button>
+                  <Button
+                    size="xl"
+                    variant="institucional"
+                    disabled={!telefonoValido || pedir.isPending}
+                    onClick={() => void enviarCodigo()}
+                    className="w-full"
+                  >
+                    {pedir.isPending ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <MessageCircle className="size-5" />
+                    )}
+                    Enviarme el código por WhatsApp
+                  </Button>
+                </>
+              )}
 
-                <div className="flex flex-col gap-1.5">
-                  <Titulo nivel="h2">Escribe el código</Titulo>
-                  <Texto tamano="sm">
-                    Te llegó por WhatsApp al {telefonoLegible(e164 ?? '')}.
-                  </Texto>
-                </div>
+              {paso === 'codigo' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPaso('telefono')}
+                    className="text-fg-muted hover:text-fg-default -ml-1 flex w-fit items-center gap-1 text-sm font-medium transition-colors"
+                  >
+                    <ChevronLeft className="size-4" />
+                    Cambiar número
+                  </button>
 
-                <input
-                  ref={campoCodigo}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  placeholder="······"
-                  value={codigo}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setCodigo(v);
-                    // Seis dígitos y se envía solo: nadie debería tener que
-                    // buscar el botón después de teclear el último número.
-                    if (v.length === 6) void confirmar(v);
-                  }}
-                  className="border-linea focus:border-teal focus:ring-teal/20 cifra h-20 w-full rounded-2xl border bg-white text-center text-[2rem] font-extrabold tracking-[0.4em] outline-none transition-all focus:ring-3"
-                />
+                  <div className="flex flex-col gap-1.5">
+                    <Titulo nivel="h2">Escribe el código</Titulo>
+                    <Texto tamano="sm">
+                      Te llegó por WhatsApp al {telefonoLegible(e164 ?? '')}.
+                    </Texto>
+                  </div>
 
-                <Button
-                  size="xl"
-                  variant="institucional"
-                  disabled={codigo.length < 6 || verificar.isPending}
-                  onClick={() => void confirmar(codigo)}
-                  className="w-full"
-                >
-                  {verificar.isPending ? <Loader2 className="animate-spin" /> : <Check className="size-5" />}
-                  Confirmar
-                </Button>
+                  <input
+                    ref={campoCodigo}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="······"
+                    value={codigo}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setCodigo(v);
+                      // Seis dígitos y se envía solo: nadie debería tener que
+                      // buscar el botón después de teclear el último número.
+                      if (v.length === 6) void confirmar(v);
+                    }}
+                    className="border-linea focus:border-tinta cifra h-20 w-full rounded-2xl border bg-white text-center text-[2rem] font-extrabold tracking-[0.4em] transition-all outline-none focus:ring-3"
+                  />
 
-                <button
-                  type="button"
-                  disabled={espera > 0 || pedir.isPending}
-                  onClick={() => void enviarCodigo()}
-                  className="text-fg-subtle hover:text-fg-default disabled:hover:text-fg-subtle text-center text-sm transition-colors disabled:cursor-default"
-                >
-                  {espera > 0 ? `Reenviar en ${espera}s` : 'No me llegó, reenviar'}
-                </button>
-              </motion.div>
-            )}
+                  <Button
+                    size="xl"
+                    variant="institucional"
+                    disabled={codigo.length < 6 || verificar.isPending}
+                    onClick={() => void confirmar(codigo)}
+                    className="w-full"
+                  >
+                    {verificar.isPending ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <Check className="size-5" />
+                    )}
+                    Confirmar
+                  </Button>
 
-            {paso === 'ciudadela' && (
-              <motion.div
-                key="ciudadela"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18 }}
-                className="flex min-h-0 flex-col gap-4"
-              >
-                <div className="flex flex-col gap-1.5">
-                  <Titulo nivel="h2">¿En qué ciudadela vives?</Titulo>
-                  <Texto tamano="sm">
-                    Con esto sabemos qué obras te tocan de cerca. Solo puedes apoyar las de tu
-                    propia ciudadela, y por eso el resultado vale.
-                  </Texto>
-                </div>
-                <ListaCiudadelas
-                  ciudadelas={ciudadelas}
-                  onElegir={async (id) => {
-                    await verificar.mutateAsync({
-                      telefono: e164!,
-                      codigo,
-                      ciudadSlug,
-                      ciudadelaId: id,
-                      origen,
-                    });
-                    onListo();
-                  }}
-                />
-              </motion.div>
-            )}
+                  <button
+                    type="button"
+                    disabled={espera > 0 || pedir.isPending}
+                    onClick={() => void enviarCodigo()}
+                    className="text-fg-subtle hover:text-fg-default disabled:hover:text-fg-subtle text-center text-sm transition-colors disabled:cursor-default"
+                  >
+                    {espera > 0 ? `Reenviar en ${espera}s` : 'No me llegó, reenviar'}
+                  </button>
+                </>
+              )}
+
+              {paso === 'ciudadela' && (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <Titulo nivel="h2">¿En qué ciudadela vives?</Titulo>
+                    <Texto tamano="sm">
+                      Con esto sabemos qué obras te tocan de cerca. Solo puedes apoyar las de tu
+                      propia ciudadela, y por eso el resultado vale.
+                    </Texto>
+                  </div>
+                  <ListaCiudadelas
+                    ciudadelas={ciudadelas}
+                    onElegir={async (id) => {
+                      await verificar.mutateAsync({
+                        telefono: e164!,
+                        codigo,
+                        ciudadSlug,
+                        ciudadelaId: id,
+                        origen,
+                      });
+                      onListo();
+                    }}
+                  />
+                </>
+              )}
+            </motion.div>
           </AnimatePresence>
 
           <Texto tamano="xs" tono="tenue" className="mt-4 text-center">
@@ -284,9 +285,7 @@ function ListaCiudadelas({
   const [busqueda, setBusqueda] = useState('');
   const [eligiendo, setEligiendo] = useState<string | null>(null);
 
-  const filtradas = busqueda.trim()
-    ? ciudadelas.filter((c) => c.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()))
-    : ciudadelas;
+  const filtradas = ciudadelas.filter((c) => coincide(c.nombre, busqueda));
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -295,7 +294,7 @@ function ListaCiudadelas({
         placeholder="Busca tu ciudadela…"
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
-        className="border-linea focus:border-teal focus:ring-teal/20 h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-all focus:ring-3"
+        className="border-linea focus:border-tinta h-12 w-full rounded-xl border bg-white px-4 text-base transition-all outline-none focus:ring-3"
       />
       <div className="-mx-1 max-h-[45vh] overflow-y-auto px-1">
         <div className="flex flex-col gap-1.5 pb-2">
@@ -312,10 +311,10 @@ function ListaCiudadelas({
                   setEligiendo(null);
                 }
               }}
-              className="border-linea hover:border-teal hover:bg-teal-pastel/40 flex min-h-12 items-center justify-between rounded-xl border bg-white px-4 py-3 text-left transition-all active:scale-[0.99] disabled:opacity-60"
+              className="border-linea hover:border-tinta hover:bg-crema-2 flex min-h-12 items-center justify-between rounded-xl border bg-white px-4 py-3 text-left transition-all active:scale-[0.99] disabled:opacity-60"
             >
               <span className="text-fg-default text-[0.9375rem] font-medium">{c.nombre}</span>
-              {eligiendo === c.id && <Loader2 className="text-teal size-4 animate-spin" />}
+              {eligiendo === c.id && <Loader2 className="text-fg-strong size-4 animate-spin" />}
             </button>
           ))}
           {filtradas.length === 0 && (

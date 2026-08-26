@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { cn } from '@/shared/lib/utils';
+import { cn, coincide } from '@/shared/lib/utils';
 
 interface Ciudadela {
   id: string;
@@ -43,9 +43,7 @@ export function SelectorSector({
 }) {
   const [busqueda, setBusqueda] = useState('');
 
-  const filtradas = busqueda.trim()
-    ? ciudadelas.filter((c) => c.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()))
-    : ciudadelas;
+  const filtradas = ciudadelas.filter((c) => coincide(c.nombre, busqueda));
 
   const elegir = (id: string | null) => {
     onElegir(id);
@@ -67,7 +65,7 @@ export function SelectorSector({
         </DialogHeader>
 
         <div className="px-5 pb-3">
-          <div className="border-linea focus-within:border-teal focus-within:ring-teal/20 flex h-12 items-center gap-2.5 rounded-full border bg-white px-4 transition-all focus-within:ring-3">
+          <div className="border-linea focus-within:border-tinta flex h-12 items-center gap-2.5 rounded-full border-2 bg-white px-4 transition-all">
             <Search className="text-fg-subtle size-[18px] shrink-0" />
             <input
               type="search"
@@ -86,16 +84,16 @@ export function SelectorSector({
             onClick={() => elegir(null)}
             className={cn(
               'flex min-h-12 items-center gap-3 rounded-2xl px-3 text-left transition-colors',
-              elegida === null ? 'bg-teal-pastel' : 'hover:bg-crema-2',
+              elegida === null ? 'bg-crema-2' : 'hover:bg-crema-2',
             )}
           >
             <span className="bg-tinta flex size-8 shrink-0 items-center justify-center rounded-full">
-              <MapPin className="text-crema size-4" />
+              <MapPin className="size-4 text-white" />
             </span>
-            <span className="text-fg-default flex-1 text-[0.9375rem] font-semibold">
+            <span className="text-fg-strong flex-1 text-[0.9375rem] font-semibold">
               Toda la ciudad · {nombreCiudad}
             </span>
-            {elegida === null && <Check className="text-teal size-5 shrink-0" />}
+            {elegida === null && <Check className="text-fg-strong size-5 shrink-0" />}
           </button>
 
           {filtradas.map((c, i) => (
@@ -108,16 +106,16 @@ export function SelectorSector({
               onClick={() => elegir(c.id)}
               className={cn(
                 'flex min-h-12 items-center gap-3 rounded-2xl px-3 text-left transition-colors',
-                elegida === c.id ? 'bg-teal-pastel' : 'hover:bg-crema-2',
+                elegida === c.id ? 'bg-crema-2' : 'hover:bg-crema-2',
               )}
             >
               <span className="bg-crema-2 text-fg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
                 <MapPin className="size-4" />
               </span>
-              <span className="text-fg-default flex-1 truncate text-[0.9375rem] font-medium">
+              <span className="text-fg-strong flex-1 truncate text-[0.9375rem] font-medium">
                 {c.nombre}
               </span>
-              {elegida === c.id && <Check className="text-teal size-5 shrink-0" />}
+              {elegida === c.id && <Check className="text-fg-strong size-5 shrink-0" />}
             </motion.button>
           ))}
 

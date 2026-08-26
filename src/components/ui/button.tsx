@@ -26,15 +26,22 @@ const botonVariantes = cva(
   {
     variants: {
       variant: {
-        default: 'bg-tinta text-crema hover:bg-tinta/90 shadow-sm',
-        accion: 'bg-ambar text-white hover:bg-ambar-hondo shadow-sm',
-        institucional: 'bg-teal text-white hover:bg-teal-hondo shadow-sm',
-        outline: 'border-linea bg-white text-fg-default hover:bg-crema-2',
-        suave: 'bg-teal-pastel text-teal-hondo hover:bg-teal-pastel/70',
-        ghost: 'text-fg-muted hover:bg-crema-2 hover:text-fg-default',
+        // Negro y blanco. Los tres primeros son el mismo botón negro con
+        // nombres distintos por intención; se mantienen separados porque medio
+        // proyecto ya los usa y porque si mañana la acción principal cambia de
+        // color, se cambia aquí y en un solo sitio.
+        default: 'bg-tinta text-white hover:bg-tinta-2 shadow-sm',
+        accion: 'bg-tinta text-white hover:bg-tinta-2 shadow-sm',
+        institucional: 'bg-tinta text-white hover:bg-tinta-2 shadow-sm',
+        // Blanco con borde negro: el estilo de "Elegir mi sector".
+        outline: 'border-tinta border-2 bg-white text-fg-strong hover:bg-crema-2',
+        // Sobre fondo oscuro: blanco con letra negra.
+        claro: 'bg-white text-fg-strong hover:bg-crema-2 shadow-sm',
+        suave: 'bg-crema-2 text-fg-strong hover:bg-linea',
+        ghost: 'text-fg-muted hover:bg-crema-2 hover:text-fg-strong',
         // Destructivo en tinte, nunca rojo pleno: no queremos asustar a nadie.
         destructive: 'bg-peligro-pastel text-peligro hover:bg-peligro-pastel/70',
-        link: 'text-teal underline-offset-4 hover:underline',
+        link: 'text-fg-strong underline-offset-4 hover:underline',
       },
       size: {
         // 44px de alto mínimo en los tamaños táctiles: mucha gente mayor usa esto.

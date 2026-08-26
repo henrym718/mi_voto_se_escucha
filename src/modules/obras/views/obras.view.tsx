@@ -62,7 +62,7 @@ export function ObrasView() {
 
       {/* --------------------------------------------------------- buscador -- */}
       <div className="flex gap-2">
-        <div className="border-linea focus-within:border-teal focus-within:ring-teal/20 flex h-12 flex-1 items-center gap-2.5 rounded-xl border bg-white px-4 transition-all focus-within:ring-3">
+        <div className="border-linea focus-within:border-tinta flex h-12 flex-1 items-center gap-2.5 rounded-xl border bg-white px-4 transition-all focus-within:ring-3">
           <Search className="text-fg-subtle size-[18px] shrink-0" />
           <input
             type="search"
@@ -89,13 +89,13 @@ export function ObrasView() {
           className={cn(
             'relative flex size-12 shrink-0 items-center justify-center rounded-xl border transition-all',
             panelFiltros || activos > 0
-              ? 'border-teal bg-teal-pastel text-teal-hondo'
+              ? 'border-tinta bg-crema-2 text-fg-strong'
               : 'border-linea text-fg-muted bg-white',
           )}
         >
           <SlidersHorizontal className="size-[18px]" />
           {activos > 0 && (
-            <span className="bg-ambar absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full text-[0.65rem] font-bold text-white">
+            <span className="bg-tinta absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full text-[0.65rem] font-bold text-white">
               {activos}
             </span>
           )}
@@ -215,8 +215,8 @@ function GrupoFiltro({
             className={cn(
               'min-h-9 rounded-full px-3.5 text-[0.8125rem] font-medium transition-all active:scale-95',
               elegido === o.id
-                ? 'bg-teal text-white'
-                : 'border-linea text-fg-muted hover:border-teal border bg-white',
+                ? 'bg-tinta text-white'
+                : 'border-linea text-fg-muted hover:border-tinta border bg-white',
             )}
           >
             {o.nombre}
@@ -226,7 +226,7 @@ function GrupoFiltro({
           <button
             type="button"
             onClick={() => setVerTodos((v) => !v)}
-            className="text-teal min-h-9 px-2 text-[0.8125rem] font-semibold"
+            className="text-fg-strong underline min-h-9 px-2 text-[0.8125rem] font-semibold"
           >
             {verTodos ? 'Ver menos' : `Ver los ${opciones.length}`}
           </button>

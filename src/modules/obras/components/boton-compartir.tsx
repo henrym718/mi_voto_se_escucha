@@ -74,7 +74,7 @@ export function BotonCompartir({
         onClick={() => void compartir()}
         aria-label="Compartir esta obra"
         className={cn(
-          'border-linea hover:border-teal hover:bg-teal-pastel/50 flex size-11 items-center justify-center rounded-full border bg-white transition-all active:scale-95',
+          'border-linea hover:border-tinta hover:bg-crema-2 flex size-11 items-center justify-center rounded-full border bg-white transition-all active:scale-95',
           className,
         )}
       >
