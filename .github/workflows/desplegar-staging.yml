@@ -39,24 +39,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ------------------------------------------------------ pruebas de la base --
-  # Corren contra un Supabase local levantado en el propio runner: las suites
-  # van envueltas en transacciones con rollback, así que no ensucian nada.
-  pruebas:
-    name: Pruebas de la base
+  # Un solo job, como en Pronto: los smokes son pasos previos al despliegue, no
+  # un job aparte. Si fallan, el job se detiene antes de tocar la base remota,
+  # que es la única garantía que hacía falta conservar.
+  desplegar_staging:
+    name: Reset DB + Edge Functions + auth (staging)
     runs-on: ubuntu-latest
+    env:
+      PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
+      DB_URL: ${{ secrets.STAGING_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
       # La MISMA versión que la devDependency "supabase" del package.json. Si se
       # separan, un config.toml que la CLI local acepta puede tumbar el pipeline.
-      - uses: supabase/setup-cli@v1
+      - name: Instalar la CLI de Supabase
+        uses: supabase/setup-cli@v1
         with:
           version: 2.115.0
-      - run: supabase start
+
+      # --- Pruebas contra un Supabase LOCAL levantado en el propio runner. Las
+      #     suites van envueltas en transacciones con rollback, así que no
+      #     ensucian nada. Van antes del reset: si el esquema no se sostiene
+      #     desde cero, no se despliega.
+      - name: Levantar Supabase local
+        run: supabase start
+
       - name: Baterías de smokes
         run: ./scripts/run-smokes.sh
         env:
           MVSE_DB_CONTAINER: supabase_db_mivotoseescucha
+
       - name: Recorrido del vecino de punta a punta
         run: |
           echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" > .env.ci
@@ -64,20 +79,11 @@ jobs:
           echo "NEXT_PUBLIC_CIUDAD_POR_DEFECTO=el-triunfo" >> .env.ci
           node --env-file=.env.ci scripts/e2e-vecino.mjs
 
-  # ----------------------------------------------------------- base de datos --
-  base_de_datos:
-    name: Base de datos y funciones
-    runs-on: ubuntu-latest
-    needs: [pruebas]
-    env:
-      PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
-      DB_URL: ${{ secrets.STAGING_DB_URL }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.115.0
+      # Se apaga antes de tocar el remoto: todos los pasos que siguen llevan
+      # --db-url o --project-ref explícito, pero dejar la pila local encendida
+      # solo invita a que un comando futuro se equivoque de destino.
+      - name: Apagar Supabase local
+        run: supabase stop --no-backup
 
       - name: Reconstruir la base desde cero
         # Aplica migraciones y, detrás, el seed: config.toml tiene
@@ -156,3 +162,13 @@ jobs:
           SUPABASE_URL: https://${{ vars.STAGING_PROJECT_REF }}.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
         run: node scripts/crear-cuenta-equipo.mjs
+
+      # Segunda pasada, ya contra el ambiente REAL y desplegado. La del
+      # principio corre contra la base local del runner y prueba que el esquema
+      # levanta desde cero; esta prueba que staging quedó sano de verdad, con
+      # sus políticas, sus grants y su seed puestos. Las suites van en
+      # begin/rollback, así que no dejan rastro.
+      - name: Verificar staging con los smokes (contra la base real)
+        env:
+          MVSE_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: ./scripts/run-smokes.sh

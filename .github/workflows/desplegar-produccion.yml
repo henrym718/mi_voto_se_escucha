@@ -44,19 +44,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  pruebas:
-    name: Pruebas de la base
+  # Un solo job, como en Pronto: los smokes son pasos previos al despliegue, no
+  # un job aparte. Si fallan, el job se detiene antes de tocar la base real.
+  desplegar_produccion:
+    name: Push DB + Edge Functions + auth (producción)
     runs-on: ubuntu-latest
+    environment: produccion
+    env:
+      PROJECT_REF: ${{ vars.PROD_PROJECT_REF }}
+      DB_URL: ${{ secrets.PROD_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
       # La MISMA versión que la devDependency "supabase" del package.json.
-      - uses: supabase/setup-cli@v1
+      - name: Instalar la CLI de Supabase
+        uses: supabase/setup-cli@v1
         with:
           version: 2.115.0
-      - run: supabase start
-      - run: ./scripts/run-smokes.sh
+
+      # --- Pruebas contra un Supabase LOCAL en el propio runner, antes de tocar
+      #     nada real. Rollback por transacción: no ensucian.
+      - name: Levantar Supabase local
+        run: supabase start
+
+      - name: Baterías de smokes
+        run: ./scripts/run-smokes.sh
         env:
           MVSE_DB_CONTAINER: supabase_db_mivotoseescucha
+
       - name: Recorrido del vecino de punta a punta
         run: |
           echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" > .env.ci
@@ -64,20 +81,8 @@ jobs:
           echo "NEXT_PUBLIC_CIUDAD_POR_DEFECTO=el-triunfo" >> .env.ci
           node --env-file=.env.ci scripts/e2e-vecino.mjs
 
-  base_de_datos:
-    name: Base de datos y funciones
-    runs-on: ubuntu-latest
-    needs: [pruebas]
-    environment: produccion
-    env:
-      PROJECT_REF: ${{ vars.PROD_PROJECT_REF }}
-      DB_URL: ${{ secrets.PROD_DB_URL }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.115.0
+      - name: Apagar Supabase local
+        run: supabase stop --no-backup
 
       # 1) MIGRACIONES. Dos caminos EXCLUYENTES según PRODUCCION_PRELANZAMIENTO.
 
