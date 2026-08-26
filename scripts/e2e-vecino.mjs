@@ -15,9 +15,11 @@ const URL_BASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const CIUDAD = process.env.NEXT_PUBLIC_CIUDAD_POR_DEFECTO ?? 'el-triunfo';
 
-// Número y código fijos de [auth.sms.test_otp]. No gastan un WhatsApp real.
+// Número y código de prueba: entran sin gastar un WhatsApp real. En local los
+// fija config.toml; en staging, el secreto STAGING_TEST_OTP del pipeline. Por
+// eso el código se puede pasar por entorno en vez de estar escrito aquí.
 const TELEFONO = process.env.E2E_TELEFONO ?? '+593990000001';
-const CODIGO = '123456';
+const CODIGO = process.env.E2E_CODIGO ?? '123456';
 
 let verdes = 0;
 let rojos = 0;
