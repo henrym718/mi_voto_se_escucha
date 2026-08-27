@@ -81,9 +81,16 @@ git push -u origin staging
 ```
 
 El pipeline hace, en orden: tipos y compilación → smokes contra un Supabase
-local del propio runner → reset de la base remota → configuración de auth
-(sesiones anónimas y URL del sitio) → creación de la cuenta del equipo → smokes
-otra vez, ahora contra staging de verdad.
+local del propio runner → reset de la base remota → reconciliación de Edge
+Functions → configuración de auth (sesiones anónimas y URL del sitio) → creación
+de la cuenta del equipo → smokes otra vez, ahora contra staging de verdad.
+
+**No hay ningún paso manual.** El reset deja la base igual al código, y el paso
+de reconciliación hace lo mismo con las Edge Functions y sus secretos, que no
+viven en la base y por eso ningún reset los alcanza: borra del proyecto las que
+ya no están en `supabase/functions/` y despliega las que sí. Hoy no hay ninguna,
+así que su trabajo es dejar el proyecto sin ninguna — incluidas las del OTP, si
+alguna vez se desplegaron.
 
 ## 6. Comprobar que quedó bien
 

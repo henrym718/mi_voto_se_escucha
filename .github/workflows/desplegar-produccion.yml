@@ -97,6 +97,67 @@ jobs:
           if [ -z "$DB_URL" ]; then echo "::error::Falta el secreto PROD_DB_URL"; exit 1; fi
           supabase db push --db-url "$DB_URL"
 
+      - name: Reconciliar Edge Functions con el repositorio
+        run: |
+          # Las Edge Functions NO viven en la base, así que el reset no las
+          # toca: una función borrada del repositorio se queda desplegada y
+          # públicamente invocable para siempre, con sus credenciales dentro.
+          # Este paso hace con ellas lo mismo que el reset hace con las tablas
+          # —dejar el ambiente igual al código— y sirve igual el día que se
+          # añada una función nueva o se quite otra.
+          #
+          # Va por la Management API y no por la CLI: mismo token y mismo
+          # mecanismo que el paso de auth de abajo, sin depender de cómo la CLI
+          # decida formatear su salida el día que la actualicemos.
+          API="https://api.supabase.com/v1/projects/$PROJECT_REF"
+          AUTH="Authorization: Bearer $SUPABASE_ACCESS_TOKEN"
+
+          if [ -d supabase/functions ]; then
+            EN_REPO=$(find supabase/functions -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+          else
+            EN_REPO=""
+          fi
+
+          # Cada lectura se valida en ESTE shell, no dentro de un `$( )`: un
+          # `exit` dentro de una sustitución mata la subshell y el script sigue
+          # de largo. Con esa forma, la API caída daba "nada que desplegar" y el
+          # pipeline terminaba en verde con todo el sistema viejo intacto — la
+          # misma trampa del filtro `paths` que ya costó un despliegue.
+          FUNCIONES=$(curl -sS -H "$AUTH" --fail-with-body "$API/functions") \
+            || { echo "::error::No se pudieron listar las Edge Functions: $FUNCIONES"; exit 1; }
+          printf '%s' "$FUNCIONES" | jq -e 'type == "array"' > /dev/null \
+            || { echo "::error::La API no devolvió una lista de funciones: $FUNCIONES"; exit 1; }
+
+          for fn in $(printf '%s' "$FUNCIONES" | jq -r '.[].slug'); do
+            if ! printf '%s\n' "$EN_REPO" | grep -qx "$fn"; then
+              echo "Borrando la función '$fn': ya no está en el repositorio."
+              curl -sS -X DELETE -H "$AUTH" --fail-with-body "$API/functions/$fn" \
+                || { echo "::error::No se pudo borrar '$fn'."; exit 1; }
+            fi
+          done
+
+          # Sin funciones en el repositorio no hay secreto de función que valga:
+          # lo que quede es de un sistema que ya no existe. Los SUPABASE_* los
+          # inyecta la plataforma y no se pueden quitar.
+          if [ -z "$EN_REPO" ]; then
+            SECRETOS=$(curl -sS -H "$AUTH" --fail-with-body "$API/secrets") \
+              || { echo "::error::No se pudieron listar los secretos: $SECRETOS"; exit 1; }
+            printf '%s' "$SECRETOS" | jq -e 'type == "array"' > /dev/null \
+              || { echo "::error::La API no devolvió una lista de secretos: $SECRETOS"; exit 1; }
+
+            SOBRANTES=$(printf '%s' "$SECRETOS" \
+              | jq -c '[.[].name | select(startswith("SUPABASE_") | not)]')
+            if [ "$SOBRANTES" != "[]" ]; then
+              echo "Quitando secretos huérfanos: $SOBRANTES"
+              curl -sS -X DELETE -H "$AUTH" -H "Content-Type: application/json" \
+                --fail-with-body "$API/secrets" --data "$SOBRANTES" \
+                || { echo "::error::No se pudieron quitar los secretos."; exit 1; }
+            fi
+            echo "No hay Edge Functions en el repositorio; nada que desplegar."
+          else
+            supabase functions deploy --project-ref "$PROJECT_REF"
+          fi
+
       - name: Configurar auth (sesiones anónimas y URL del sitio)
         env:
           SITIO_URL: ${{ vars.PROD_SITIO_URL }}
@@ -111,6 +172,11 @@ jobs:
           # del cantón salen por la misma IP del operador móvil, y con el valor
           # de fábrica (30) una jornada de territorio deja a media brigada sin
           # poder apoyar.
+          #
+          # El teléfono y el hook de SMS se apagan explícitamente: en un proyecto
+          # que ya tuvo OTP quedarían encendidos apuntando a una función que ya
+          # no existe. Apagarlos aquí es lo que hace que el despliegue deje el
+          # ambiente en el estado que dice el código, y no en el que quedó.
           if [ -z "$SITIO_URL" ]; then
             echo "::error::Falta la Variable PROD_SITIO_URL (la URL pública, sin barra final)."
             exit 1
@@ -120,6 +186,8 @@ jobs:
           {
             "external_anonymous_users_enabled": true,
             "rate_limit_anonymous_users": 300,
+            "external_phone_enabled": false,
+            "hook_send_sms_enabled": false,
             "site_url": "$SITIO_URL",
             "uri_allow_list": "$SITIO_URL,$SITIO_URL/**"
           }
