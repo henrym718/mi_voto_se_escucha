@@ -12,7 +12,7 @@ import { useCategorias, useCiudadelas } from '@/modules/catalogo/hooks/use-catal
 import { usePortal } from '@/modules/shared/portal.provider';
 import { cifra, cn } from '@/shared/lib/utils';
 
-import { TarjetaObra, TarjetaObraEsqueleto } from '../components/tarjeta-obra';
+import { TarjetaObra, TarjetaObraEsqueleto, pesosDeLista } from '../components/tarjeta-obra';
 import { useObras } from '../hooks/use-obras';
 
 const ORDENES = [
@@ -22,7 +22,7 @@ const ORDENES = [
 ] as const;
 
 export function ObrasView() {
-  const { ciudad, haySesion, pedirVerificacion } = usePortal();
+  const { ciudad } = usePortal();
   const [panelFiltros, setPanelFiltros] = useState(false);
 
   // Los filtros viven en la URL: así el enlace que alguien comparta al grupo
@@ -45,6 +45,8 @@ export function ObrasView() {
     limite: 30,
   });
 
+  const obras = data?.items ?? [];
+  const pesos = pesosDeLista(obras);
   const activos = [filtros.barrio, filtros.categoria, filtros.q].filter(Boolean).length;
   const nombreBarrio = ciudadelas.find((c) => c.id === filtros.barrio)?.nombre;
   const nombreCategoria = categorias.find((c) => c.id === filtros.categoria)?.nombre;
@@ -52,7 +54,7 @@ export function ObrasView() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-5 md:px-6 md:pt-8 lg:max-w-7xl">
       <div className="flex flex-col gap-1">
-        <Titulo nivel="h1">Obras pedidas</Titulo>
+        <Titulo nivel="h1">Todo lo que piden los vecinos</Titulo>
         <Texto tamano="sm">
           {data ? `${cifra(data.total)} pedidos en ${ciudad.nombre}` : 'Cargando…'}
           {nombreBarrio && ` · ${nombreBarrio}`}
@@ -164,18 +166,12 @@ export function ObrasView() {
       <div className={cn('flex flex-col gap-3 transition-opacity md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-3', isPlaceholderData && 'opacity-55')}>
         {isLoading
           ? [0, 1, 2, 3].map((i) => <TarjetaObraEsqueleto key={i} indice={i} />)
-          : (data?.items ?? []).map((obra, i) => (
-              <TarjetaObra
-                key={obra.id}
-                obra={obra}
-                indice={i}
-                haySesion={haySesion}
-                onNecesitaSesion={() => pedirVerificacion('apoyar')}
-              />
+          : obras.map((obra, i) => (
+              <TarjetaObra key={obra.id} obra={obra} posicion={i + 1} peso={pesos[i]} indice={i} />
             ))}
       </div>
 
-      {!isLoading && (data?.items.length ?? 0) === 0 && (
+      {!isLoading && obras.length === 0 && (
         <div className="border-linea flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-white px-6 py-12 text-center">
           <Texto peso="fuerte" tono="normal">
             No encontramos obras con esos filtros.

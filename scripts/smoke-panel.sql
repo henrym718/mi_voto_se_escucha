@@ -77,13 +77,12 @@ begin
   select id into v_est_comprometida from public.estados where ciudad_id = v_ciudad and slug = 'comprometida';
   select id into v_est_visitada from public.estados where ciudad_id = v_ciudad and slug = 'visitada';
 
-  -- Esta suite cuenta destinatarios y porcentajes, así que necesita partir de
+  -- Esta suite cuenta apoyos y filas de la cola, así que necesita partir de
   -- un estado conocido. Puede permitirse limpiarlo porque toda la suite vive
   -- dentro de una transacción que termina en rollback: la base queda igual que
   -- estaba. Sin esto, correr las pruebas sobre una base con vecinos reales
   -- (staging, o después de una prueba de punta a punta) las pondría en rojo
   -- por datos ajenos, no por errores.
-  delete from public.notificaciones;
   delete from public.votos;
   delete from public.vecinos;
 
@@ -134,8 +133,9 @@ begin
   perform pg_temp.chk('B2 — cada columna trae su color para pintarla',
     (v_r -> 'columnas' -> 0) ? 'color', (v_r -> 'columnas' -> 0)::text);
 
-  perform pg_temp.chk('B3 — cada tarjeta muestra el porcentaje del barrio',
-    (v_r -> 'columnas' -> 0 -> 'obras' -> 0) ? 'porcentaje_ciudadela', '');
+  perform pg_temp.chk('B3 — cada tarjeta muestra su sector y su contador',
+    (v_r -> 'columnas' -> 0 -> 'obras' -> 0) ? 'ciudadela'
+    and (v_r -> 'columnas' -> 0 -> 'obras' -> 0) ? 'apoyos', '');
 
   perform pg_temp.chk('B4 — cada tarjeta avisa cuántos días lleva sin moverse',
     (v_r -> 'columnas' -> 0 -> 'obras' -> 0) ? 'dias_sin_cambio', '');
@@ -159,8 +159,8 @@ begin
   perform pg_temp.chk('C1 — el editor puede mover una obra de estado',
     (v_r ->> 'success')::boolean, v_r::text);
 
-  perform pg_temp.chk('C2 — el cambio avisa a los dos vecinos que la apoyaron',
-    (v_r ->> 'notificados')::integer = 2, v_r ->> 'notificados');
+  perform pg_temp.chk('C2 — el cambio devuelve el estado nuevo para pintarlo',
+    v_r -> 'estado' ->> 'nombre' is not null, (v_r -> 'estado')::text);
 
   select count(*) into v_n from public.publicaciones where obra_id = v_obra;
   perform pg_temp.chk('C3 — queda una entrada en la línea de tiempo pública', v_n = 1, v_n::text);
@@ -169,13 +169,19 @@ begin
    where obra_id = v_obra and jsonb_array_length(media) = 1;
   perform pg_temp.chk('C4 — la foto adjunta viaja con la publicación', v_n = 1, v_n::text);
 
-  select count(*) into v_n from public.notificaciones where origen_id = v_obra;
-  perform pg_temp.chk('C5 — los avisos quedaron encolados, no enviados en caliente',
-    v_n = 2, v_n::text);
+  -- El avance se cuenta en la página de la obra, que es gratis, y no por un
+  -- WhatsApp por persona, que a mil vecinos cuesta más que la propia campaña.
+  select count(*) into v_n from public.publicaciones
+   where obra_id = v_obra and texto ilike '%sábado%';
+  perform pg_temp.chk('C5 — el texto del avance queda visible para quien apoyó',
+    v_n = 1, v_n::text);
 
-  select count(*) into v_n from public.notificaciones
-   where origen_id = v_obra and estado = 'pendiente' and boton_path like 'o/%';
-  perform pg_temp.chk('C6 — cada aviso lleva el enlace corto de la obra', v_n = 2, v_n::text);
+  perform pg_temp.act_anon();
+  v_r := public.obra_detalle(v_obra);
+  perform pg_temp.chk('C6 — y cualquiera lo ve en la línea de tiempo de la obra',
+    jsonb_array_length(v_r -> 'obra' -> 'linea_tiempo') >= 1,
+    jsonb_array_length(v_r -> 'obra' -> 'linea_tiempo')::text);
+  perform pg_temp.act_as(v_editor);
 
   select count(*) into v_n from public.bitacora where entidad_id = v_obra and accion = 'cambio_estado';
   perform pg_temp.chk('C7 — el cambio queda registrado en la bitácora', v_n = 1, v_n::text);
@@ -197,10 +203,11 @@ begin
   perform pg_temp.chk('C10 — un estado que no es de esta ciudad se rechaza',
     v_r ->> 'error_code' = 'estado_invalido', v_r ->> 'error_code');
 
-  -- Se puede mover sin avisar, cuando el cambio es de trámite interno.
-  v_r := public.admin_obra_cambiar_estado(v_obra, v_est_comprometida, 'Ajuste interno', '[]'::jsonb, false);
-  perform pg_temp.chk('C11 — se puede mover sin notificar cuando es trámite interno',
-    (v_r ->> 'notificados')::integer = 0, v_r ->> 'notificados');
+  -- Mover dos veces deja dos entradas: la línea de tiempo es un historial, no
+  -- un estado que se sobreescribe.
+  v_r := public.admin_obra_cambiar_estado(v_obra, v_est_comprometida, 'Entra al plan de obras.');
+  select count(*) into v_n from public.publicaciones where obra_id = v_obra;
+  perform pg_temp.chk('C11 — cada movimiento suma una entrada al historial', v_n = 2, v_n::text);
 
   -- D: la cola de aprobación ----------------------------------------------------
   -- Se mide el CRECIMIENTO de la cola, no su tamaño: la base puede traer
@@ -219,11 +226,30 @@ begin
     jsonb_array_length(v_r -> 'items') = v_n + 1,
     v_n || ' -> ' || jsonb_array_length(v_r -> 'items'));
 
-  perform pg_temp.chk('D2 — la cola avisa cuántos parecidos ya existen en ese barrio',
-    (v_r -> 'items' -> 0) ? 'similares', (v_r -> 'items' -> 0)::text);
+  perform pg_temp.chk('D2 — la cola trae las causas parecidas del mismo sector',
+    (v_r -> 'items' -> 0) ? 'parecidas', (v_r -> 'items' -> 0)::text);
 
+  perform pg_temp.chk('D2b — y el borrador de la IA con lo que dijo el vecino al lado',
+    (v_r -> 'items' -> 0) ? 'ia_estado'
+    and (v_r -> 'items' -> 0) ? 'texto_original'
+    and (v_r -> 'items' -> 0) ? 'audio_url', (v_r -> 'items' -> 0)::text);
+
+  -- Sin título no se publica: un pedido que la IA no alcanzó a ordenar tiene
+  -- que pasar por las manos de alguien antes de salir a la cara del candidato.
+  update public.obras set titulo = null, ia_estado = 'fallido' where id = v_obra_cola;
   v_r := public.admin_obra_aprobar(v_obra_cola);
-  perform pg_temp.chk('D3 — el editor puede aprobar', (v_r ->> 'success')::boolean, v_r::text);
+  perform pg_temp.chk('D3a — sin título no se puede publicar',
+    v_r ->> 'error_code' = 'titulo_requerido', v_r ->> 'error_code');
+
+  -- El ajuste del equipo viaja en la misma llamada que la aprobación.
+  v_r := public.admin_obra_aprobar(v_obra_cola, 'Cámaras de seguridad en la entrada del barrio',
+                                   'Los vecinos piden vigilancia en el ingreso.');
+  perform pg_temp.chk('D3 — el editor publica con el texto corregido',
+    (v_r ->> 'success')::boolean, v_r::text);
+
+  perform pg_temp.chk('D3b — y el ajuste queda guardado, no se pierde',
+    (select titulo from public.obras where id = v_obra_cola) ilike '%entrada del barrio%',
+    (select titulo from public.obras where id = v_obra_cola));
 
   perform pg_temp.chk('D4 — la obra aprobada queda con sello de quién la aprobó',
     exists (select 1 from public.obras where id = v_obra_cola and aprobada and aprobada_por = v_editor));
@@ -247,7 +273,7 @@ begin
     v_r ->> 'error_code' = 'obra_no_disponible', v_r ->> 'error_code');
 
   perform pg_temp.act_as(v_candidato);
-  v_r := public.admin_obra_aprobar(v_obra_cola);
+  v_r := public.admin_obra_aprobar(v_obra_cola, 'Un título cualquiera del candidato');
   perform pg_temp.chk('D9 — el candidato NO puede aprobar pedidos',
     v_r ->> 'error_code' = 'sin_permiso', v_r ->> 'error_code');
 

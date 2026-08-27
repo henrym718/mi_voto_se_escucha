@@ -19,7 +19,7 @@ import { AnimatePresence } from 'motion/react';
 
 import { Texto, Titulo } from '@/components/typography';
 import { useCategorias, useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
-import { cifra, cn, porcentaje } from '@/shared/lib/utils';
+import { cifra, cn } from '@/shared/lib/utils';
 
 import { HojaCambioEstado } from '../components/hoja-cambio-estado';
 import { useTablero } from '../hooks/use-panel';
@@ -231,11 +231,6 @@ function Tarjeta({ obra }: { obra: TarjetaTablero }) {
       <div className="flex items-center justify-between gap-2">
         <span className="cifra text-teal text-[0.8125rem] font-bold">
           {cifra(obra.apoyos)}
-          {obra.porcentaje_ciudadela > 0 && (
-            <span className="text-fg-subtle ml-1 font-medium">
-              ({porcentaje(obra.porcentaje_ciudadela)})
-            </span>
-          )}
         </span>
         <div className="flex items-center gap-1.5">
           {obra.tiene_media && <Film className="text-fg-faint size-3.5" />}

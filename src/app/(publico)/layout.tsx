@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 
+import { BotonPublicar } from '@/modules/shared/components/boton-publicar';
 import { Navegacion } from '@/modules/shared/components/navegacion';
 import { PortalProvider } from '@/modules/shared/portal.provider';
 import { ciudadActual } from '@/shared/config/ciudad';
@@ -34,7 +35,8 @@ export default async function LayoutPublico({ children }: { children: React.Reac
       <div className="flex min-h-dvh flex-col">
         <Navegacion />
         {/* El padding inferior deja libre la barra de navegación en móvil. */}
-        <main className="flex-1 pb-24 md:pb-12">{children}</main>
+        <main className="flex-1 pb-28 md:pb-12">{children}</main>
+        <BotonPublicar />
       </div>
     </PortalProvider>
   );

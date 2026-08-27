@@ -1,13 +1,18 @@
 -- ============================================================================
 -- RPC públicas del dominio: listar, ver, apoyar y publicar pedidos.
 --
--- El apoyo tiene dos reglas que viven aquí y no en el cliente:
---   1. Un apoyo por vecino por obra (además del índice único que lo garantiza).
---   2. Se apoya SOLO en la ciudadela propia. Es lo que hace confiable el mapa
---      de demanda que se le vende al candidato.
+-- Apoyar es el acto que sostiene todo el producto, así que tiene exactamente
+-- una regla: un apoyo por persona por obra, garantizado por el índice único de
+-- `votos`. Se puede apoyar cualquier causa del cantón, no solo las del propio
+-- barrio: la portada abre en "Todo el cantón / Más apoyadas" y un botón que
+-- falla en la mayoría de las tarjetas mata la conversión. El sector del vecino
+-- se sigue guardando, pero para segmentar su contacto, no para limitar su voto.
+--
+-- El mapa de demanda no se ensucia por eso: una obra pertenece al sector donde
+-- está el problema, no al sector de quien la apoya.
 -- ============================================================================
 
--- Cuántos vecinos verificados tiene una ciudadela. Base del porcentaje.
+-- Cuántos vecinos declararon vivir en una ciudadela. Solo la usa el panel.
 create or replace function public.vecinos_en_ciudadela(p_ciudadela_id uuid)
 returns integer
 language sql
@@ -27,7 +32,7 @@ create or replace function public.obras_listar(
   p_estado_id    uuid default null,
   p_busqueda     text default null,
   p_orden        text default 'apoyos',
-  p_limite       integer default 20,
+  p_limite       integer default 10,
   p_desde        integer default 0
 )
 returns jsonb
@@ -69,7 +74,6 @@ begin
            e.nombre  as estado_nombre,
            e.slug    as estado_slug,
            e.color   as estado_color,
-           public.vecinos_en_ciudadela(o.ciudadela_id) as vecinos_ciudadela,
            case when v_qn = '' then 1.0 else greatest(
              case when public.fn_search_norm(o.titulo) like '%' || v_qn || '%' then 1.0 else 0.0 end,
              word_similarity(v_qn, public.fn_search_norm(o.titulo)),
@@ -103,7 +107,6 @@ begin
            e.nombre  as estado_nombre,
            e.slug    as estado_slug,
            e.color   as estado_color,
-           public.vecinos_en_ciudadela(o.ciudadela_id) as vecinos_ciudadela,
            case when v_qn = '' then 1.0 else greatest(
              case when public.fn_search_norm(o.titulo) like '%' || v_qn || '%' then 1.0 else 0.0 end,
              word_similarity(v_qn, public.fn_search_norm(o.titulo)),
@@ -136,10 +139,6 @@ begin
                'descripcion', b.descripcion,
                'foto_url', b.foto_url,
                'apoyos', b.apoyos,
-               'porcentaje_ciudadela',
-                 case when b.vecinos_ciudadela > 0
-                      then round((b.apoyos::numeric / b.vecinos_ciudadela) * 100, 1)
-                      else 0 end,
                'origen', b.origen,
                'fuente', b.fuente,
                'creada_en', b.creada_en,
@@ -184,10 +183,9 @@ as $$
 declare
   v_obra   record;
   v_linea  jsonb;
-  v_vecinos integer;
 begin
   select o.*,
-         cd.nombre as ciudadela_nombre, cd.slug as ciudadela_slug,
+         cd.nombre as ciudadela_nombre, cd.slug as ciudadela_slug, cd.enlace_canal,
          ct.nombre as categoria_nombre, ct.slug as categoria_slug, ct.icono as categoria_icono,
          e.nombre  as estado_nombre,  e.slug as estado_slug, e.color as estado_color,
          e.es_compromiso, e.descripcion as estado_descripcion,
@@ -215,8 +213,6 @@ begin
     return jsonb_build_object('success', false, 'error_code', 'obra_no_disponible');
   end if;
 
-  v_vecinos := public.vecinos_en_ciudadela(v_obra.ciudadela_id);
-
   select coalesce(jsonb_agg(
            jsonb_build_object(
              'id', p.id,
@@ -241,15 +237,13 @@ begin
       'descripcion', v_obra.descripcion,
       'foto_url', v_obra.foto_url,
       'apoyos', v_obra.apoyos,
-      'porcentaje_ciudadela',
-        case when v_vecinos > 0 then round((v_obra.apoyos::numeric / v_vecinos) * 100, 1) else 0 end,
-      'vecinos_ciudadela', v_vecinos,
       'origen', v_obra.origen,
       'fuente', v_obra.fuente,
       'aprobada', v_obra.aprobada,
       'creada_en', v_obra.creada_en,
       'ciudad', jsonb_build_object('slug', v_obra.ciudad_slug, 'nombre', v_obra.ciudad_nombre),
-      'ciudadela', jsonb_build_object('id', v_obra.ciudadela_id, 'nombre', v_obra.ciudadela_nombre, 'slug', v_obra.ciudadela_slug),
+      'ciudadela', jsonb_build_object('id', v_obra.ciudadela_id, 'nombre', v_obra.ciudadela_nombre,
+                                      'slug', v_obra.ciudadela_slug, 'enlace_canal', v_obra.enlace_canal),
       'categoria', jsonb_build_object('id', v_obra.categoria_id, 'nombre', v_obra.categoria_nombre, 'slug', v_obra.categoria_slug, 'icono', v_obra.categoria_icono),
       'estado', jsonb_build_object('id', v_obra.estado_id, 'nombre', v_obra.estado_nombre, 'slug', v_obra.estado_slug,
                                    'color', v_obra.estado_color, 'descripcion', v_obra.estado_descripcion,
@@ -262,6 +256,8 @@ end;
 $$;
 
 -- ----------------------------------------------------------- obra_apoyar --
+-- Un toque y listo. La ficha del vecino se crea aquí si es su primer acto: así
+-- el padrón cuenta a quien participó, no a quien pasó por la portada.
 create or replace function public.obra_apoyar(p_obra_id uuid)
 returns jsonb
 language plpgsql
@@ -269,21 +265,11 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid    uuid := auth.uid();
-  v_vecino public.vecinos;
-  v_obra   public.obras;
-  v_pos    integer;
+  v_uid  uuid := auth.uid();
+  v_obra public.obras;
 begin
   if v_uid is null then
     return jsonb_build_object('success', false, 'error_code', 'sin_sesion');
-  end if;
-
-  select * into v_vecino from public.vecinos where id = v_uid;
-  if v_vecino.id is null then
-    return jsonb_build_object('success', false, 'error_code', 'vecino_no_registrado');
-  end if;
-  if v_vecino.ciudadela_id is null then
-    return jsonb_build_object('success', false, 'error_code', 'falta_ciudadela');
   end if;
 
   select * into v_obra from public.obras where id = p_obra_id;
@@ -293,37 +279,21 @@ begin
   if not v_obra.aprobada or v_obra.fusionada_en is not null or v_obra.rechazada_en is not null then
     return jsonb_build_object('success', false, 'error_code', 'obra_no_disponible');
   end if;
-  if v_obra.ciudad_id <> v_vecino.ciudad_id then
-    return jsonb_build_object('success', false, 'error_code', 'otra_ciudad');
-  end if;
 
-  -- La regla que sostiene el valor del dato: se apoya solo en la ciudadela propia.
-  if v_obra.ciudadela_id <> v_vecino.ciudadela_id then
-    return jsonb_build_object('success', false, 'error_code', 'fuera_de_tu_ciudadela');
-  end if;
+  perform public.vecino_asegurar_interno(v_obra.ciudad_id);
 
   insert into public.votos (obra_id, vecino_id, ciudad_id)
   values (p_obra_id, v_uid, v_obra.ciudad_id)
   on conflict (obra_id, vecino_id) do nothing;
 
-  update public.vecinos set ultimo_acceso_en = now() where id = v_uid;
-
-  select count(*)::integer + 1 into v_pos
-    from public.obras o
-   where o.ciudadela_id = v_obra.ciudadela_id
-     and o.aprobada and o.fusionada_en is null
-     and o.apoyos > (select apoyos from public.obras where id = p_obra_id);
-
   return jsonb_build_object(
     'success', true,
-    'apoyos', (select apoyos from public.obras where id = p_obra_id),
-    'posicion_ciudadela', v_pos,
-    'necesita_perfil', v_vecino.edad_rango is null
+    'apoyos', (select apoyos from public.obras where id = p_obra_id)
   );
 end;
 $$;
 
-comment on function public.obra_apoyar is 'Un apoyo por vecino por obra, y solo en su propia ciudadela.';
+comment on function public.obra_apoyar is 'Un apoyo por persona por obra, en cualquier sector del cantón.';
 
 -- ----------------------------------------------------- obra_quitar_apoyo --
 create or replace function public.obra_quitar_apoyo(p_obra_id uuid)
@@ -332,14 +302,12 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  v_uid uuid := auth.uid();
 begin
-  if v_uid is null then
+  if auth.uid() is null then
     return jsonb_build_object('success', false, 'error_code', 'sin_sesion');
   end if;
 
-  delete from public.votos where obra_id = p_obra_id and vecino_id = v_uid;
+  delete from public.votos where obra_id = p_obra_id and vecino_id = auth.uid();
 
   return jsonb_build_object(
     'success', true,
@@ -348,59 +316,19 @@ begin
 end;
 $$;
 
--- ------------------------------------------------------- obras_similares --
--- El corazón del "buscar antes de crear": al elegir ciudadela + categoría,
--- se muestra lo que ya existe ANTES de dejar escribir.
-create or replace function public.obras_similares(
-  p_ciudadela_id uuid,
-  p_categoria_id uuid
-)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = public
-as $$
-declare
-  v_items   jsonb;
-  v_vecinos integer;
-begin
-  v_vecinos := public.vecinos_en_ciudadela(p_ciudadela_id);
-
-  select coalesce(jsonb_agg(
-           jsonb_build_object(
-             'id', o.id,
-             'codigo', o.codigo,
-             'titulo', o.titulo,
-             'descripcion', o.descripcion,
-             'foto_url', o.foto_url,
-             'apoyos', o.apoyos,
-             'porcentaje_ciudadela',
-               case when v_vecinos > 0 then round((o.apoyos::numeric / v_vecinos) * 100, 1) else 0 end,
-             'estado', jsonb_build_object('nombre', e.nombre, 'color', e.color),
-             'ya_apoyada', exists (select 1 from public.votos v where v.obra_id = o.id and v.vecino_id = auth.uid())
-           ) order by o.apoyos desc
-         ), '[]'::jsonb)
-    into v_items
-    from public.obras o
-    join public.estados e on e.id = o.estado_id
-   where o.ciudadela_id = p_ciudadela_id
-     and o.categoria_id = p_categoria_id
-     and o.aprobada
-     and o.fusionada_en is null
-     and o.rechazada_en is null;
-
-  return jsonb_build_object('success', true, 'items', v_items);
-end;
-$$;
-
 -- ------------------------------------------------------------ obra_crear --
+-- El vecino elige sector y categoría, habla veinte segundos o escribe una
+-- frase, y termina. No espera a nada: la obra entra sin título, marcada como
+-- pendiente de la IA, y quien la ordena y la revisa es el equipo.
+--
+-- El sector es el del PROBLEMA, no el del vecino: alguien puede reportar el
+-- hueco que ve todos los días camino al trabajo.
 create or replace function public.obra_crear(
-  p_ciudadela_id uuid,
-  p_categoria_id uuid,
-  p_titulo       text,
-  p_descripcion  text default '',
-  p_foto_url     text default null
+  p_ciudadela_id  uuid,
+  p_categoria_id  uuid,
+  p_texto         text default null,
+  p_audio_url     text default null,
+  p_foto_url      text default null
 )
 returns jsonb
 language plpgsql
@@ -408,38 +336,38 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid      uuid := auth.uid();
-  v_vecino   public.vecinos;
-  v_estado   uuid;
+  v_uid       uuid := auth.uid();
+  v_ciudad_id uuid;
+  v_estado    uuid;
   v_recientes integer;
-  v_obra     public.obras;
+  v_obra      public.obras;
 begin
   if v_uid is null then
     return jsonb_build_object('success', false, 'error_code', 'sin_sesion');
   end if;
 
-  select * into v_vecino from public.vecinos where id = v_uid;
-  if v_vecino.id is null then
-    return jsonb_build_object('success', false, 'error_code', 'vecino_no_registrado');
+  -- Sin nada que contar no hay pedido: ni texto ni nota de voz.
+  if coalesce(trim(p_texto), '') = '' and coalesce(trim(p_audio_url), '') = '' then
+    return jsonb_build_object('success', false, 'error_code', 'sin_contenido');
   end if;
 
-  if length(trim(coalesce(p_titulo, ''))) < 8 then
-    return jsonb_build_object('success', false, 'error_code', 'titulo_muy_corto');
-  end if;
-
-  -- Solo puede pedir en su propia ciudadela, igual que para apoyar.
-  if p_ciudadela_id is distinct from v_vecino.ciudadela_id then
-    return jsonb_build_object('success', false, 'error_code', 'fuera_de_tu_ciudadela');
+  select cd.ciudad_id into v_ciudad_id
+    from public.ciudadelas cd
+   where cd.id = p_ciudadela_id and cd.activa;
+  if v_ciudad_id is null then
+    return jsonb_build_object('success', false, 'error_code', 'ciudadela_invalida');
   end if;
 
   if not exists (
     select 1 from public.categorias ct
-     where ct.id = p_categoria_id and ct.ciudad_id = v_vecino.ciudad_id and ct.activa
+     where ct.id = p_categoria_id and ct.ciudad_id = v_ciudad_id and ct.activa
   ) then
     return jsonb_build_object('success', false, 'error_code', 'categoria_invalida');
   end if;
 
-  -- Anti-inundación: máximo 3 pedidos por vecino por día.
+  perform public.vecino_asegurar_interno(v_ciudad_id);
+
+  -- Anti-inundación: máximo 3 pedidos por persona por día.
   select count(*)::integer into v_recientes
     from public.obras o
    where o.creador_id = v_uid and o.creada_en > now() - interval '24 hours';
@@ -449,17 +377,18 @@ begin
 
   select e.id into v_estado
     from public.estados e
-   where e.ciudad_id = v_vecino.ciudad_id and e.es_inicial and e.activo;
+   where e.ciudad_id = v_ciudad_id and e.es_inicial and e.activo;
   if v_estado is null then
     return jsonb_build_object('success', false, 'error_code', 'sin_estado_inicial');
   end if;
 
   insert into public.obras (
     ciudad_id, ciudadela_id, categoria_id, estado_id,
-    titulo, descripcion, foto_url, origen, creador_id, aprobada
+    texto_original, audio_url, foto_url, ia_estado, origen, creador_id, aprobada
   ) values (
-    v_vecino.ciudad_id, p_ciudadela_id, p_categoria_id, v_estado,
-    trim(p_titulo), coalesce(trim(p_descripcion), ''), p_foto_url, 'vecino', v_uid, false
+    v_ciudad_id, p_ciudadela_id, p_categoria_id, v_estado,
+    nullif(trim(coalesce(p_texto, '')), ''), nullif(trim(coalesce(p_audio_url, '')), ''),
+    p_foto_url, 'pendiente', 'vecino', v_uid, false
   )
   returning * into v_obra;
 
@@ -470,16 +399,59 @@ begin
 
   return jsonb_build_object(
     'success', true,
-    'obra', jsonb_build_object('id', v_obra.id, 'codigo', v_obra.codigo, 'aprobada', false),
-    'mensaje', 'Tu pedido entró a revisión. Te avisamos cuando se publique.'
+    'obra', jsonb_build_object('id', v_obra.id, 'codigo', v_obra.codigo),
+    'enlace_canal', (select cd.enlace_canal from public.ciudadelas cd where cd.id = p_ciudadela_id)
   );
 end;
 $$;
 
-comment on function public.obra_crear is 'Crea el pedido en estado inicial y sin aprobar. Pasa por la cola del equipo.';
+comment on function public.obra_crear is 'Entra sin título y pendiente de IA. El vecino no espera; ordena y revisa el equipo.';
+
+-- ------------------------------------------------------ obra_ia_resultado --
+-- La escribe la ruta del servidor después de transcribir y ordenar. Va por RPC
+-- y no por UPDATE directo para que el estado de la IA no se pueda dejar a medias
+-- desde el navegador.
+create or replace function public.obra_ia_resultado(
+  p_obra_id       uuid,
+  p_titulo        text,
+  p_descripcion   text,
+  p_transcripcion text default null,
+  p_fallo         boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_titulo text := nullif(trim(coalesce(p_titulo, '')), '');
+begin
+  if p_fallo or v_titulo is null or length(v_titulo) < 8 then
+    update public.obras
+       set ia_estado     = 'fallido',
+           transcripcion = coalesce(nullif(trim(coalesce(p_transcripcion, '')), ''), transcripcion)
+     where id = p_obra_id;
+    return jsonb_build_object('success', true, 'ia_estado', 'fallido');
+  end if;
+
+  update public.obras
+     set titulo        = left(v_titulo, 120),
+         descripcion   = left(coalesce(trim(p_descripcion), ''), 1000),
+         transcripcion = coalesce(nullif(trim(coalesce(p_transcripcion, '')), ''), transcripcion),
+         ia_estado     = 'listo'
+   where id = p_obra_id;
+
+  return jsonb_build_object('success', true, 'ia_estado', 'listo');
+end;
+$$;
+
+revoke all on function public.obra_ia_resultado(uuid, text, text, text, boolean)
+  from public, anon, authenticated;
+
+comment on function public.obra_ia_resultado is 'Solo la llama el servidor con service_role, nunca el navegador.';
 
 -- -------------------------------------------------------- ranking_barrio --
--- Top de la ciudadela del vecino, para la portada.
+-- Top de un sector. Lo usa la portada cuando el vecino filtra su barrio.
 create or replace function public.ranking_ciudadela(
   p_ciudadela_id uuid,
   p_limite       integer default 5
@@ -491,11 +463,8 @@ security definer
 set search_path = public
 as $$
 declare
-  v_items   jsonb;
-  v_vecinos integer;
+  v_items jsonb;
 begin
-  v_vecinos := public.vecinos_en_ciudadela(p_ciudadela_id);
-
   select coalesce(jsonb_agg(fila order by orden), '[]'::jsonb)
     into v_items
     from (
@@ -504,8 +473,6 @@ begin
                'codigo', o.codigo,
                'titulo', o.titulo,
                'apoyos', o.apoyos,
-               'porcentaje_ciudadela',
-                 case when v_vecinos > 0 then round((o.apoyos::numeric / v_vecinos) * 100, 1) else 0 end,
                'posicion', row_number() over (order by o.apoyos desc, o.creada_en asc),
                'categoria', jsonb_build_object('nombre', ct.nombre, 'icono', ct.icono),
                'estado', jsonb_build_object('nombre', e.nombre, 'color', e.color),
@@ -521,66 +488,6 @@ begin
        limit greatest(p_limite, 1)
     ) t;
 
-  return jsonb_build_object('success', true, 'vecinos_ciudadela', v_vecinos, 'items', v_items);
-end;
-$$;
-
--- --------------------------------------------------------- ciudad_portada --
--- Todo lo que necesita la portada en una sola llamada.
-create or replace function public.ciudad_portada(p_ciudad_slug text)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = public
-as $$
-declare
-  v_ciudad public.ciudades;
-  v_portal public.portal;
-  v_total_vecinos integer;
-  v_total_obras   integer;
-  v_total_apoyos  integer;
-begin
-  select * into v_ciudad from public.ciudades where slug = p_ciudad_slug and activa;
-  if v_ciudad.id is null then
-    return jsonb_build_object('success', false, 'error_code', 'ciudad_no_encontrada');
-  end if;
-
-  select * into v_portal from public.portal where ciudad_id = v_ciudad.id;
-
-  select count(*)::integer into v_total_vecinos from public.vecinos where ciudad_id = v_ciudad.id;
-  select count(*)::integer into v_total_obras from public.obras
-   where ciudad_id = v_ciudad.id and aprobada and fusionada_en is null;
-  select coalesce(sum(apoyos), 0)::integer into v_total_apoyos from public.obras
-   where ciudad_id = v_ciudad.id and aprobada and fusionada_en is null;
-
-  return jsonb_build_object(
-    'success', true,
-    'ciudad', jsonb_build_object(
-      'id', v_ciudad.id, 'slug', v_ciudad.slug, 'nombre', v_ciudad.nombre,
-      'provincia', v_ciudad.provincia, 'modo', v_ciudad.modo,
-      'poblacion_urbana', v_ciudad.poblacion_urbana
-    ),
-    'portal', case when v_portal.ciudad_id is null then null else
-      jsonb_build_object(
-        'candidato_nombre', v_portal.candidato_nombre,
-        'candidato_cargo', v_portal.candidato_cargo,
-        'partido', v_portal.partido,
-        'eslogan', v_portal.eslogan,
-        'bio', v_portal.bio,
-        'foto_url', v_portal.foto_url,
-        'banner_url', v_portal.banner_url,
-        'video_url', v_portal.video_url,
-        'video_portada_url', v_portal.video_portada_url,
-        'logo_url', v_portal.logo_url,
-        'color_marca', v_portal.color_marca,
-        'redes', v_portal.redes
-      ) end,
-    'cifras', jsonb_build_object(
-      'vecinos', v_total_vecinos,
-      'obras', v_total_obras,
-      'apoyos', v_total_apoyos
-    )
-  );
+  return jsonb_build_object('success', true, 'items', v_items);
 end;
 $$;

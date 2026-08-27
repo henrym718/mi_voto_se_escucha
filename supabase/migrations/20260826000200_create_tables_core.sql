@@ -75,6 +75,7 @@ create table public.ciudadelas (
   verificado          boolean not null default false,
   fuente              text,
   poblacion_estimada  integer,
+  enlace_canal        text,
   activa              boolean not null default true,
   orden               integer not null default 0,
   creada_en           timestamptz not null default now(),
@@ -82,6 +83,7 @@ create table public.ciudadelas (
 );
 
 comment on table public.ciudadelas is 'Lista cerrada. El vecino elige de aquí; nunca escribe texto libre.';
+comment on column public.ciudadelas.enlace_canal is 'Invitación al canal de WhatsApp del sector. Con ella, el vecino se une de un toque y el equipo no paga un centavo por avisar.';
 comment on column public.ciudadelas.verificado is 'true = confirmado por documento municipal. false = por verificar (OSM).';
 comment on column public.ciudadelas.zona is 'funcional = sector de uso corriente sin respaldo documental, ej. "Centro".';
 
@@ -135,7 +137,6 @@ create table public.estados (
   es_inicial       boolean not null default false,
   es_compromiso    boolean not null default false,
   es_cierre_suave  boolean not null default false,
-  notifica         boolean not null default true,
   activo           boolean not null default true,
   unique (ciudad_id, slug)
 );
@@ -144,7 +145,6 @@ comment on table public.estados is 'Estados configurables por ciudad. Plantilla 
 comment on column public.estados.es_inicial is 'Estado que recibe toda obra nueva. Exactamente uno por ciudad.';
 comment on column public.estados.es_compromiso is 'Marca la obra como prometida públicamente por el candidato.';
 comment on column public.estados.es_cierre_suave is 'Aterrizaje sin costo político: "En estudio técnico", "A mediano plazo". Nunca "No viable".';
-comment on column public.estados.notifica is 'Si al entrar en este estado se avisa por WhatsApp a quienes la apoyaron.';
 
 alter table public.estados enable row level security;
 

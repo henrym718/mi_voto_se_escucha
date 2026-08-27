@@ -37,9 +37,14 @@ create table public.obras (
   ciudadela_id    uuid not null references public.ciudadelas (id) on delete restrict,
   categoria_id    uuid not null references public.categorias (id) on delete restrict,
   estado_id       uuid not null references public.estados (id) on delete restrict,
-  titulo          text not null check (length(trim(titulo)) between 8 and 120),
+  titulo          text check (titulo is null or length(trim(titulo)) between 8 and 120),
   descripcion     text not null default '' check (length(descripcion) <= 1000),
   foto_url        text,
+  audio_url       text,
+  texto_original  text,
+  transcripcion   text,
+  ia_estado       text not null default 'no_aplica'
+                    check (ia_estado in ('no_aplica', 'pendiente', 'listo', 'fallido')),
   origen          text not null default 'vecino' check (origen in ('vecino', 'pdot', 'equipo')),
   fuente          text,
   aprobada        boolean not null default false,
@@ -50,7 +55,6 @@ create table public.obras (
   fusionada_en    uuid references public.obras (id) on delete set null,
   creador_id      uuid references public.vecinos (id) on delete set null,
   apoyos          integer not null default 0,
-  top_avisado_en  timestamptz,
   creada_en       timestamptz not null default now(),
   actualizada_en  timestamptz not null default now()
 );
@@ -60,6 +64,11 @@ comment on column public.obras.origen is 'pdot: pre-cargada desde el plan munici
 comment on column public.obras.fuente is 'Cita textual del documento cuando origen = pdot. Se muestra al vecino.';
 comment on column public.obras.apoyos is 'Contador denormalizado, mantenido por trigger. Nunca se escribe a mano.';
 comment on column public.obras.fusionada_en is 'Si tiene valor, esta obra fue absorbida por otra y no se lista.';
+comment on column public.obras.titulo is 'Nulo mientras la IA no ordena el pedido. Sin título no se aprueba ni se lista.';
+comment on column public.obras.audio_url is 'Ruta dentro del bucket privado `notas`, no una URL pública. El panel pide el enlace firmado al abrirla.';
+comment on column public.obras.texto_original is 'Lo que el vecino escribió, tal cual. Nunca se muestra en público.';
+comment on column public.obras.transcripcion is 'Lo que Whisper oyó en la nota de voz.';
+comment on column public.obras.ia_estado is 'pendiente: entró y falta procesar. fallido: el equipo la redacta a mano.';
 
 alter table public.obras enable row level security;
 

@@ -134,10 +134,13 @@ begin
   -- B: lo que NO debe poder leer ---------------------------------------------
   perform pg_temp.chk('B1 — el anónimo NO lee ni un teléfono del padrón',
     pg_temp.visibles('public.vecinos') <= 0, pg_temp.visibles('public.vecinos')::text);
-  perform pg_temp.chk('B2 — el anónimo NO lee la bitácora de códigos OTP',
-    pg_temp.visibles('public.otp_send_log') <= 0, pg_temp.visibles('public.otp_send_log')::text);
-  perform pg_temp.chk('B3 — el anónimo NO lee la cola de notificaciones',
-    pg_temp.visibles('public.notificaciones') <= 0, pg_temp.visibles('public.notificaciones')::text);
+  -- El enlace del canal SÍ es público: el vecino tiene que poder tocarlo desde
+  -- la pantalla de confirmación. Lo que nunca sale es a quién pertenece un
+  -- número, y eso ya lo cubre B1.
+  perform pg_temp.chk('B2 — el anónimo SÍ ve el enlace del canal de su sector',
+    pg_temp.visibles('public.ciudadelas') >= 70, pg_temp.visibles('public.ciudadelas')::text);
+  perform pg_temp.chk('B3 — el anónimo NO puede sacar los contactos de un sector',
+    pg_temp.bloqueado(format('select public.admin_contactos_sector(%L, false)', v_arbolito2)));
   perform pg_temp.chk('B4 — el anónimo NO lee la bitácora del equipo',
     pg_temp.visibles('public.bitacora') <= 0, pg_temp.visibles('public.bitacora')::text);
   perform pg_temp.chk('B5 — el anónimo NO ve el voto de nadie',
@@ -175,18 +178,20 @@ begin
       'insert into public.vecinos (id, ciudad_id, telefono) values (%L, %L, %L)',
       gen_random_uuid(), v_ciudad, '+593999999999')));
 
-  perform pg_temp.chk('C7 — el anónimo NO puede encolar un WhatsApp',
+  perform pg_temp.chk('C7 — el anónimo NO puede ponerle título a una obra ajena',
     pg_temp.bloqueado(format(
-      'insert into public.notificaciones (ciudad_id, telefono, plantilla) values (%L, %L, %L)',
-      v_ciudad, '+593999999999', 'difusion')));
+      'select public.obra_ia_resultado(%L, %L, %L)', v_obra, 'Titulo puesto a dedo', '')));
 
-  -- D: funciones reservadas al worker y a las Edge Functions ----------------
-  perform pg_temp.chk('D1 — el anónimo NO puede invocar el limitador de OTP',
-    pg_temp.bloqueado($q$select public.otp_limite_ok('+593990000001')$q$));
-  perform pg_temp.chk('D2 — el anónimo NO puede reclamar notificaciones de la cola',
-    pg_temp.bloqueado('select public.notif_reclamar_lote(10)'));
-  perform pg_temp.chk('D3 — el anónimo NO puede marcar notificaciones como enviadas',
-    pg_temp.bloqueado(format('select public.notif_marcar_enviada(%L)', gen_random_uuid())));
+  perform pg_temp.chk('C8 — el anónimo NO puede pegar un enlace de canal falso',
+    pg_temp.bloqueado(format('select public.admin_canales_guardar(%L, ''[]''::jsonb)', v_ciudad)));
+
+  -- D: funciones reservadas al servidor -------------------------------------
+  perform pg_temp.chk('D1 — el anónimo NO puede darse de alta saltándose las RPC',
+    pg_temp.bloqueado(format('select public.vecino_asegurar_interno(%L)', v_ciudad)));
+  perform pg_temp.chk('D2 — el anónimo NO puede leer la lista de canales del panel',
+    pg_temp.bloqueado(format('select public.admin_canales_listar(%L)', v_ciudad)));
+  perform pg_temp.chk('D3 — el anónimo NO puede ver la cola de aprobación',
+    pg_temp.bloqueado(format('select public.admin_cola_aprobacion(%L)', v_ciudad)));
   perform pg_temp.chk('D4 — el anónimo NO puede escribir en la bitácora',
     pg_temp.bloqueado(format(
       'select public.anotar_bitacora(%L, %L, %L, null, ''{}''::jsonb)',
@@ -204,18 +209,30 @@ begin
   perform pg_temp.chk('E3 — el vecino NO ve a quién apoyó otro vecino',
     pg_temp.visibles(format('(select * from public.votos where vecino_id = %L) x', v_vecino_b)) = 0, '');
 
-  perform pg_temp.chk('E4 — el vecino NO lee la cola de notificaciones',
-    pg_temp.visibles('public.notificaciones') <= 0, pg_temp.visibles('public.notificaciones')::text);
+  -- Un vecino con sesión llega como `authenticated`, igual que el equipo del
+  -- panel: el GRANT no puede separarlos y quien decide es la comprobación de
+  -- rol de dentro de la función. Por eso aquí NO se espera una excepción sino
+  -- un `sin_permiso` — y sobre todo, que no venga ni un teléfono de vuelta.
+  perform pg_temp.chk('E4 — el vecino NO puede exportar los teléfonos de su barrio',
+    public.admin_contactos_sector(v_arbolito2) ->> 'error_code' = 'sin_permiso',
+    public.admin_contactos_sector(v_arbolito2)::text);
 
-  perform pg_temp.chk('E5 — el vecino NO lee el padrón completo',
+  perform pg_temp.chk('E5 — y esa negativa no devuelve ningún contacto',
+    public.admin_contactos_sector(v_arbolito2) -> 'items' is null,
+    public.admin_contactos_sector(v_arbolito2)::text);
+
+  perform pg_temp.chk('E5b — el vecino NO lee el padrón completo',
     pg_temp.visibles('public.vecinos') < 2, pg_temp.visibles('public.vecinos')::text);
 
-  -- El update no lanza error: RLS simplemente no toca ninguna fila.
+  -- Cambiarle el teléfono a otro sería lo más grave que se puede hacer aquí:
+  -- se le roba el contacto a una persona real. El update no lanza error — RLS
+  -- simplemente no toca ninguna fila —, así que se comprueba el resultado.
   perform pg_temp.bloqueado(format(
-    'update public.vecinos set nombre = ''Suplantado'' where id = %L', v_vecino_b));
+    'update public.vecinos set telefono = ''+593999999999'' where id = %L', v_vecino_b));
   perform pg_temp.act_dios();
-  select count(*) into v_n from public.vecinos where id = v_vecino_b and nombre = 'Suplantado';
-  perform pg_temp.chk('E6 — el vecino NO puede editar la ficha de otro', v_n = 0, v_n::text);
+  select count(*) into v_n from public.vecinos
+   where id = v_vecino_b and telefono = '+593999999999';
+  perform pg_temp.chk('E6 — el vecino NO puede cambiarle el teléfono a otro', v_n = 0, v_n::text);
 
   perform pg_temp.act_as(v_vecino_a);
   perform pg_temp.bloqueado(format(

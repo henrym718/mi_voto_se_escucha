@@ -18,8 +18,6 @@ export const clavesObras = {
     [...clavesObras.todo, 'lista', ciudad, filtros] as const,
   detalle: (id: string) => [...clavesObras.todo, 'detalle', id] as const,
   porCodigo: (codigo: string) => [...clavesObras.todo, 'codigo', codigo] as const,
-  similares: (ciudadela: string, categoria: string) =>
-    [...clavesObras.todo, 'similares', ciudadela, categoria] as const,
   ranking: (ciudadela: string) => [...clavesObras.todo, 'ranking', ciudadela] as const,
 };
 
@@ -35,17 +33,11 @@ export function useObras(ciudadSlug: string, filtros: ObrasFiltros = {}) {
 
 export function useObra(params: { id?: string; codigo?: string }, habilitada = true) {
   return useQuery({
-    queryKey: params.id ? clavesObras.detalle(params.id) : clavesObras.porCodigo(params.codigo ?? ''),
+    queryKey: params.id
+      ? clavesObras.detalle(params.id)
+      : clavesObras.porCodigo(params.codigo ?? ''),
     queryFn: () => servicio.obtenerObra(params),
     enabled: habilitada && Boolean(params.id || params.codigo),
-  });
-}
-
-export function useSimilares(ciudadelaId?: string | null, categoriaId?: string | null) {
-  return useQuery({
-    queryKey: clavesObras.similares(ciudadelaId ?? '', categoriaId ?? ''),
-    queryFn: () => servicio.buscarSimilares(ciudadelaId!, categoriaId!),
-    enabled: Boolean(ciudadelaId && categoriaId),
   });
 }
 
@@ -58,35 +50,26 @@ export function useRankingBarrio(ciudadelaId?: string | null, limite = 5) {
 }
 
 /**
- * Códigos que significan "a este vecino le falta un paso de identidad". La hoja
- * de verificación sabe retomar desde donde quedó: sin sesión pide el número, y
- * con sesión pero sin ciudadela va directo al selector. Dejar `falta_ciudadela`
- * fuera convertía el aviso en un callejón sin salida: el toast decía «elige tu
- * ciudadela» y no había ningún lugar donde elegirla.
+ * Apoyar.
+ *
+ * `onApoyado` se dispara cuando el apoyo YA quedó registrado: es donde la
+ * portada decide si pedirle el número. El orden importa — primero cuenta el
+ * voto y después se pide el dato. Al revés, cada formulario que aparece antes
+ * del gesto se lleva una parte de la gente.
  */
-const FALTA_IDENTIFICARSE = ['sin_sesion', 'vecino_no_registrado', 'falta_ciudadela'];
-
-export function useApoyar(onSinSesion?: () => void) {
+export function useApoyar(onApoyado?: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: servicio.apoyarObra,
     onSuccess: (respuesta, obraId) => {
       if (!respuesta.success) {
-        // La sesión puede haberse vencido entre que cargó la página y el
-        // vecino tocó Apoyar. Ahí un aviso es un callejón sin salida: lo que
-        // hace falta es volver a pedirle el número y seguir donde estaba.
-        if (FALTA_IDENTIFICARSE.includes(respuesta.error_code ?? '')) {
-          queryClient.invalidateQueries({ queryKey: ['identidad'] });
-          onSinSesion?.();
-          return;
-        }
         toast.error(mensajeDeError(respuesta.error_code));
         return;
       }
 
       // Apoyar es el momento que hay que celebrar: es lo que queremos que el
-      // vecino repita y cuente. Se respeta quien pidió menos animación.
+      // vecino repita y cuente. Se respeta a quien pidió menos animación.
       const menosMovimiento =
         typeof window !== 'undefined' &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -97,19 +80,14 @@ export function useApoyar(onSinSesion?: () => void) {
           spread: 65,
           startVelocity: 32,
           origin: { y: 0.7 },
-          colors: ['#0d7d6c', '#c98a12', '#ddf2e7', '#fff3d6'],
+          colors: ['#111111', '#4a4a4a', '#d9d9d9', '#ffffff'],
           disableForReducedMotion: true,
         });
       }
 
-      toast.success(
-        respuesta.posicion_ciudadela && respuesta.posicion_ciudadela <= 3
-          ? `¡Listo! Esta obra va #${respuesta.posicion_ciudadela} en tu ciudadela.`
-          : 'Listo, tu apoyo quedó registrado.',
-      );
-
       queryClient.invalidateQueries({ queryKey: clavesObras.detalle(obraId) });
       queryClient.invalidateQueries({ queryKey: clavesObras.todo });
+      onApoyado?.();
     },
     onError: () => toast.error('No pudimos registrar tu apoyo. Intenta otra vez.'),
   });
@@ -129,24 +107,24 @@ export function useQuitarApoyo() {
   });
 }
 
-export function useCrearObra(onSinSesion?: () => void) {
+/**
+ * Publicar un pedido. Al terminar dispara el procesado de IA sin esperarlo: el
+ * vecino ya está viendo la pantalla de confirmación mientras el servidor
+ * transcribe y redacta para la cola del equipo.
+ */
+export function useCrearObra() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: servicio.crearObra,
     onSuccess: (respuesta) => {
       if (!respuesta.success) {
-        if (FALTA_IDENTIFICARSE.includes(respuesta.error_code ?? '')) {
-          queryClient.invalidateQueries({ queryKey: ['identidad'] });
-          onSinSesion?.();
-          return;
-        }
         toast.error(mensajeDeError(respuesta.error_code));
         return;
       }
+      if (respuesta.obra) servicio.pedirProcesadoIA(respuesta.obra.id);
       queryClient.invalidateQueries({ queryKey: clavesObras.todo });
-      toast.success(respuesta.mensaje ?? 'Tu pedido entró a revisión.');
     },
-    onError: () => toast.error('No pudimos publicar tu pedido. Intenta otra vez.'),
+    onError: () => toast.error('No pudimos enviar tu pedido. Intenta otra vez.'),
   });
 }

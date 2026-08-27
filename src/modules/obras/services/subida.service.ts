@@ -55,6 +55,66 @@ export async function subirFotoDePedido(archivo: File): Promise<string> {
   return supabase.storage.from('obras').getPublicUrl(nombre).data.publicUrl;
 }
 
+/**
+ * Sube la nota de voz del pedido.
+ *
+ * Devuelve la RUTA dentro del bucket, no una URL: `notas` es privado — es la
+ * voz de una persona contando lo que le pasa en su casa — y solo el equipo la
+ * escucha, con un enlace firmado que el panel pide en el momento.
+ */
+export async function subirNotaDeVoz(audio: Blob): Promise<string> {
+  const supabase = supabaseNavegador();
+  const { data: sesion } = await supabase.auth.getUser();
+  const uid = sesion.user?.id;
+  if (!uid) throw new Error('sin_sesion');
+
+  // La extensión importa: la API de transcripción decide el contenedor por ella.
+  const extension = audio.type.includes('mp4')
+    ? 'mp4'
+    : audio.type.includes('ogg')
+      ? 'ogg'
+      : audio.type.includes('mpeg')
+        ? 'mp3'
+        : 'webm';
+
+  const ruta = `${uid}/${crypto.randomUUID()}.${extension}`;
+
+  const { error } = await supabase.storage.from('notas').upload(ruta, audio, {
+    contentType: audio.type || 'audio/webm',
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+
+  return ruta;
+}
+
+/**
+ * Sube contenido del portal (fotos, recortes, logo, video) bajo la carpeta de
+ * la ciudad. El recorte del candidato se sube tal cual cuando es PNG: pasarlo
+ * por el compresor lo convierte a JPEG y le devuelve el fondo blanco que
+ * alguien se tomó el trabajo de recortar.
+ */
+export async function subirArchivoDePortal(ciudadId: string, archivo: File): Promise<string> {
+  const supabase = supabaseNavegador();
+
+  const esVideo = archivo.type.startsWith('video/');
+  const conservarTalCual = esVideo || archivo.type === 'image/png' || archivo.type === 'image/svg+xml';
+
+  const cuerpo = conservarTalCual ? archivo : await comprimirImagen(archivo);
+  const extension = conservarTalCual
+    ? (archivo.name.split('.').pop()?.toLowerCase() ?? 'bin')
+    : 'jpg';
+  const nombre = `${ciudadId}/${crypto.randomUUID()}.${extension}`;
+
+  const { error } = await supabase.storage.from('portal').upload(nombre, cuerpo, {
+    contentType: conservarTalCual ? archivo.type : 'image/jpeg',
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+
+  return supabase.storage.from('portal').getPublicUrl(nombre).data.publicUrl;
+}
+
 /** Sube media de avance del equipo, bajo la carpeta de su ciudad. */
 export async function subirMediaDeAvance(ciudadId: string, archivo: File): Promise<{
   tipo: 'foto' | 'video';

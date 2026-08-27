@@ -2,14 +2,13 @@
 
 import { useRef, useState } from 'react';
 
-import { ArrowRight, Camera, Film, Loader2, MessageCircle, Send, X } from 'lucide-react';
+import { ArrowRight, Camera, Film, Loader2, Send, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
 import { Texto, Titulo } from '@/components/typography';
 import { Button } from '@/components/ui/button';
 import { subirMediaDeAvance } from '@/modules/obras/services/subida.service';
-import { cifra, cn } from '@/shared/lib/utils';
 
 import { useCambiarEstado } from '../hooks/use-panel';
 import type { ColumnaTablero, TarjetaTablero } from '../services/panel.service';
@@ -24,22 +23,22 @@ interface Props {
 
 /**
  * Lo que se abre al soltar una tarjeta en otra columna. Aquí ocurre el momento
- * de valor del producto: el candidato escribe dos líneas, graba un video de
- * treinta segundos, y eso le llega por WhatsApp a las personas exactas que
- * pidieron esa obra. Antes de enviar se ve a cuántas y cuánto cuesta.
+ * de valor del producto: el candidato escribe dos líneas y graba un video de
+ * treinta segundos, y eso queda en la línea de tiempo pública de la obra — la
+ * misma página que el vecino compartió a su grupo del barrio.
+ *
+ * No se manda ningún WhatsApp desde aquí: pagar un mensaje por persona y por
+ * cambio de estado se come la caja de campaña en avisos de trámite. Lo que se
+ * cuenta al barrio se publica en el canal del sector, que no cuesta nada.
  */
 export function HojaCambioEstado({ ciudadId, obra, desde, hacia, onCerrar }: Props) {
   const [texto, setTexto] = useState('');
   const [media, setMedia] = useState<{ tipo: string; url: string; nombre: string }[]>([]);
   const [subiendo, setSubiendo] = useState(false);
-  const [notificar, setNotificar] = useState(hacia.notifica);
 
   const camara = useRef<HTMLInputElement>(null);
   const fotos = useRef<HTMLInputElement>(null);
   const cambiar = useCambiarEstado(ciudadId);
-
-  const destinatarios = notificar ? obra.apoyos : 0;
-  const costo = (destinatarios * 0.008).toFixed(2);
 
   async function agregar(e: React.ChangeEvent<HTMLInputElement>) {
     const archivos = Array.from(e.target.files ?? []);
@@ -65,7 +64,6 @@ export function HojaCambioEstado({ ciudadId, obra, desde, hacia, onCerrar }: Pro
       estadoId: hacia.id,
       texto,
       media: media.map(({ tipo, url }) => ({ tipo, url })),
-      notificar,
     });
     if (respuesta.success) onCerrar();
   }
@@ -196,31 +194,6 @@ export function HojaCambioEstado({ ciudadId, obra, desde, hacia, onCerrar }: Pro
           </div>
         </div>
 
-        <label
-          className={cn(
-            'flex cursor-pointer items-start gap-3 rounded-xl px-4 py-3 transition-colors',
-            notificar ? 'bg-teal-pastel' : 'bg-crema-2',
-          )}
-        >
-          <input
-            type="checkbox"
-            checked={notificar}
-            onChange={(e) => setNotificar(e.target.checked)}
-            className="accent-teal mt-0.5 size-4"
-          />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-fg-strong flex items-center gap-1.5 text-[0.875rem] font-semibold">
-              <MessageCircle className="size-3.5" />
-              Avisar por WhatsApp
-            </span>
-            <Texto tamano="xs">
-              {destinatarios > 0
-                ? `Se enviará a ${cifra(destinatarios)} ${destinatarios === 1 ? 'vecino que apoyó' : 'vecinos que apoyaron'} esta obra. Costo estimado: $${costo}`
-                : 'Nadie apoya esta obra todavía, así que no se enviará nada.'}
-            </Texto>
-          </div>
-        </label>
-
         <div className="flex gap-2 pb-[env(safe-area-inset-bottom)]">
           <Button variant="outline" size="lg" onClick={onCerrar}>
             Cancelar
@@ -233,7 +206,7 @@ export function HojaCambioEstado({ ciudadId, obra, desde, hacia, onCerrar }: Pro
             className="flex-1"
           >
             {cambiar.isPending ? <Loader2 className="animate-spin" /> : <Send />}
-            {notificar && destinatarios > 0 ? 'Publicar y avisar' : 'Publicar'}
+            Publicar
           </Button>
         </div>
       </motion.div>

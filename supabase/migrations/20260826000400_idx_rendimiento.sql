@@ -30,7 +30,12 @@ create index obras_por_creador on public.obras (creador_id, creada_en desc);
 
 -- Búsqueda por texto en título y descripción.
 create index obras_texto
-  on public.obras using gin (to_tsvector('spanish', titulo || ' ' || descripcion));
+  on public.obras using gin (to_tsvector('spanish', coalesce(titulo, '') || ' ' || descripcion));
+
+-- Detección de duplicados en la cola: el título del pedido nuevo contra los ya
+-- aprobados de su sector. Sin este índice cada revisión recorre toda la ciudad.
+create index obras_titulo_trgm
+  on public.obras using gin (public.fn_search_norm(titulo) public.gin_trgm_ops);
 
 -- "¿Ya apoyé esta obra?" se pregunta en cada tarjeta del listado.
 create index votos_por_vecino on public.votos (vecino_id, obra_id);
@@ -40,7 +45,12 @@ create index publicaciones_por_obra on public.publicaciones (obra_id, creada_en 
 
 -- Conteo de vecinos por ciudadela: base del porcentaje, se llama por cada obra.
 create index vecinos_por_ciudadela on public.vecinos (ciudadela_id);
-create index vecinos_por_ciudad on public.vecinos (ciudad_id) where baja_en is null;
+create index vecinos_por_ciudad on public.vecinos (ciudad_id);
 
--- Segmentación de difusiones por interés (categorías que el vecino apoyó).
+-- Exportar los contactos de un sector para sumarlos al canal de WhatsApp.
+create index vecinos_con_telefono
+  on public.vecinos (ciudad_id, ciudadela_id)
+  where telefono is not null;
+
+-- Recuento y migración de apoyos al fusionar duplicados.
 create index votos_por_obra on public.votos (obra_id, vecino_id);

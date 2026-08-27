@@ -2,189 +2,324 @@
 
 import { useRef, useState } from 'react';
 
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
-import { Camera, Check, ImageIcon, Info, Loader2, Plus, X } from 'lucide-react';
+import { Camera, Check, ImageIcon, Loader2, MessageCircle, Send, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
 
 import { Texto, Titulo } from '@/components/typography';
 import { Button } from '@/components/ui/button';
 import { useCategorias, useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
+import { GrabadorVoz } from '@/modules/ia/components/grabador-voz';
 import { usePortal } from '@/modules/shared/portal.provider';
 import { RUTAS } from '@/shared/config/rutas';
-import { cifra, cn, porcentaje } from '@/shared/lib/utils';
+import { cn, coincide } from '@/shared/lib/utils';
 
-import { BotonApoyar } from '../components/boton-apoyar';
-import { useCrearObra, useSimilares } from '../hooks/use-obras';
-import { subirFotoDePedido } from '../services/subida.service';
+import { useCrearObra } from '../hooks/use-obras';
+import { subirFotoDePedido, subirNotaDeVoz } from '../services/subida.service';
 
 /**
- * "Buscar antes de crear". El orden importa: primero se le muestra al vecino lo
- * que ya existe en su barrio y en su categoría, con un botón grande de apoyar.
- * Solo si nada le sirve puede escribir. Sin esto se terminan cuarenta pedidos
- * de alcantarillado con un voto cada uno, y el ranking no le sirve a nadie.
+ * Reportar un problema, en dos pasos y sin escribir una línea si no se quiere.
+ *
+ * El orden es deliberado: sector y categoría se eligen de una lista cerrada —
+ * texto libre ahí llena la base de "el pedrero", "El Pedrero" y "mi barrio", y
+ * el mapa de calor deja de existir— y recién después se cuenta el problema,
+ * hablando, que es como lo cuenta la gente de verdad.
+ *
+ * Lo que el vecino dice NO se le devuelve corregido ni se le pide que lo
+ * apruebe: eso lo hace el equipo en su cola. Aquí termina en un toque.
  */
 export function PublicarView() {
-  const router = useRouter();
-  const { ciudad, haySesion, pedirVerificacion } = usePortal();
+  const { ciudad, sectorSugerido, tieneContacto, pedirContacto } = usePortal();
 
-  const [ciudadelaId, setCiudadelaId] = useState<string | null>(null);
+  // El sector del pedido es el del PROBLEMA, no el del vecino, así que vive
+  // aquí y no toca el filtro de la portada. Arranca en el que ya declaró —casi
+  // siempre acierta— y se deriva en vez de copiarse: `sectorSugerido` llega
+  // después del primer pintado y un efecto que lo copiara se quedaría viejo.
+  const [sectorTocado, setSectorTocado] = useState<string | null>(null);
+  const sector = sectorTocado ?? sectorSugerido;
+
   const [categoriaId, setCategoriaId] = useState<string | null>(null);
-  const [formularioAbierto, setFormularioAbierto] = useState(false);
+  const [texto, setTexto] = useState('');
+  const [audio, setAudio] = useState<{ blob: Blob; segundos: number } | null>(null);
+  const [foto, setFoto] = useState<{ archivo: File; vista: string } | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [publicado, setPublicado] = useState<{ codigo: string; enlaceCanal?: string | null } | null>(
+    null,
+  );
 
   const { data: ciudadelas = [] } = useCiudadelas(ciudad.id);
   const { data: categorias = [] } = useCategorias(ciudad.id);
-  const { data: similares = [], isLoading: buscando } = useSimilares(ciudadelaId, categoriaId);
+  const crear = useCrearObra();
 
-  const listoParaBuscar = Boolean(ciudadelaId && categoriaId);
+  const camara = useRef<HTMLInputElement>(null);
+  const galeria = useRef<HTMLInputElement>(null);
+
+  const hayContenido = texto.trim().length >= 10 || Boolean(audio);
+  const listo = Boolean(sector && categoriaId && hayContenido);
+
+  function elegirArchivo(evento: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = evento.target.files?.[0];
+    if (!archivo) return;
+    setFoto({ archivo, vista: URL.createObjectURL(archivo) });
+    evento.target.value = '';
+  }
+
+  async function enviar() {
+    if (!sector || !categoriaId || !hayContenido) return;
+    setEnviando(true);
+
+    try {
+      // La nota de voz es lo único que no puede perderse: si falla su subida,
+      // se corta aquí en vez de mandar un pedido vacío que nadie podrá leer.
+      let audioRuta: string | null = null;
+      if (audio) audioRuta = await subirNotaDeVoz(audio.blob);
+
+      let fotoUrl: string | null = null;
+      if (foto) {
+        try {
+          fotoUrl = await subirFotoDePedido(foto.archivo);
+        } catch {
+          // La foto es un extra: si no sube, el pedido igual vale.
+          toast.error('No pudimos subir la foto, pero tu pedido sí se envió.');
+        }
+      }
+
+      const respuesta = await crear.mutateAsync({
+        ciudadelaId: sector,
+        categoriaId,
+        texto: texto.trim() || null,
+        audioRuta,
+        fotoUrl,
+      });
+
+      if (!respuesta.success || !respuesta.obra) return;
+
+      setPublicado({ codigo: respuesta.obra.codigo, enlaceCanal: respuesta.enlace_canal });
+      // El pedido ya está adentro. El número se pide encima de la confirmación,
+      // nunca antes: si alguien lo cierra, su reporte sigue en pie.
+      if (!tieneContacto) pedirContacto('publicar');
+    } catch {
+      toast.error('No pudimos enviar tu nota de voz. Revisa tu señal e intenta otra vez.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (publicado) {
+    return <Confirmacion codigo={publicado.codigo} enlaceCanal={publicado.enlaceCanal} />;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-5 pb-8 md:px-6 md:pt-8">
       <div className="flex flex-col gap-1.5">
-        <Titulo nivel="h1">Publicar mi pedido</Titulo>
+        <Titulo nivel="h1">Cuéntanos qué falta</Titulo>
         <Texto tamano="sm">
-          Primero dinos dónde y de qué se trata. Si alguien ya lo pidió, apóyalo: juntos pesan
-          mucho más que dos pedidos separados.
+          Dinos dónde y de qué se trata, y después cuéntalo hablando. El equipo lo ordena y lo
+          publica.
         </Texto>
       </div>
 
-      <Paso numero={1} titulo="¿En qué ciudadela?" completo={Boolean(ciudadelaId)}>
-        <SelectorPastillas
-          opciones={ciudadelas.map((c) => ({ id: c.id, nombre: c.nombre }))}
-          elegido={ciudadelaId}
-          onElegir={(id) => {
-            setCiudadelaId(id);
-            setFormularioAbierto(false);
-          }}
-          buscable
-        />
+      <Paso numero={1} titulo="¿En qué sector?" completo={Boolean(sector)}>
+        <SelectorSectores ciudadelas={ciudadelas} elegido={sector} onElegir={setSectorTocado} />
+      </Paso>
+
+      <Paso numero={2} titulo="¿De qué se trata?" completo={Boolean(categoriaId)}>
+        <div className="flex flex-wrap gap-2">
+          {categorias.map((c) => (
+            <Pastilla
+              key={c.id}
+              activa={categoriaId === c.id}
+              onClick={() => setCategoriaId(c.id)}
+              texto={c.nombre}
+            />
+          ))}
+        </div>
       </Paso>
 
       <AnimatePresence>
-        {ciudadelaId && (
+        {sector && categoriaId && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.28 }}
           >
-            <Paso numero={2} titulo="¿De qué se trata?" completo={Boolean(categoriaId)}>
-              <SelectorPastillas
-                opciones={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
-                elegido={categoriaId}
-                onElegir={(id) => {
-                  setCategoriaId(id);
-                  setFormularioAbierto(false);
-                }}
-              />
+            <Paso numero={3} titulo="¿Qué está pasando?" completo={hayContenido}>
+              <div className="flex flex-col gap-4">
+                {/* La voz primero y en grande: mucha gente del cantón escribe
+                    con dificultad pero manda audios todo el día. */}
+                {audio ? (
+                  <div className="border-tinta flex items-center gap-3 rounded-2xl border-2 bg-white px-4 py-3">
+                    <span className="bg-tinta flex size-10 shrink-0 items-center justify-center rounded-full">
+                      <Check className="size-5 text-white" strokeWidth={3} />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-fg-strong text-[0.9375rem] font-semibold">
+                        Nota de voz lista
+                      </span>
+                      <span className="text-fg-subtle text-[0.8125rem]">
+                        {audio.segundos} segundos grabados
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAudio(null)}
+                      aria-label="Borrar la nota de voz"
+                      className="text-fg-subtle hover:text-fg-strong flex size-9 items-center justify-center rounded-full transition-colors"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-linea rounded-2xl border-2 border-dashed bg-white p-4">
+                    <GrabadorVoz
+                      onGrabado={(blob, segundos) => setAudio({ blob, segundos })}
+                      disabled={enviando}
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-fg-muted text-[0.7rem] font-bold tracking-[0.12em] uppercase">
+                    O escríbelo en pocas palabras
+                  </span>
+                  <textarea
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    placeholder="Ej. La calle 4 lleva dos meses sin alumbrado y de noche no se ve nada."
+                    className="border-linea focus:border-tinta w-full resize-none rounded-2xl border-2 bg-white px-4 py-3 text-[0.9375rem] outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-fg-muted text-[0.7rem] font-bold tracking-[0.12em] uppercase">
+                    Una foto ayuda <span className="normal-case">(opcional)</span>
+                  </span>
+
+                  {foto ? (
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={foto.vista}
+                        alt=""
+                        className="max-h-56 w-full rounded-2xl object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFoto(null)}
+                        aria-label="Quitar foto"
+                        className="absolute top-2 right-2 flex size-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      {/* `capture` abre la cámara directo; sin él el navegador
+                          ofrece la galería y se pierde el gesto de "sal y
+                          tómale la foto ahora mismo". */}
+                      <input
+                        ref={camara}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={elegirArchivo}
+                        className="hidden"
+                      />
+                      <input
+                        ref={galeria}
+                        type="file"
+                        accept="image/*"
+                        onChange={elegirArchivo}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={() => camara.current?.click()}
+                        className="flex-1"
+                      >
+                        <Camera />
+                        Tomar foto
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={() => galeria.current?.click()}
+                        className="flex-1"
+                      >
+                        <ImageIcon />
+                        Galería
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </Paso>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {listoParaBuscar && (
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col gap-4"
-          >
-            {buscando ? (
-              <div className="border-linea flex items-center justify-center gap-2 rounded-2xl border bg-white py-10">
-                <Loader2 className="text-fg-strong size-5 animate-spin" />
-                <Texto tamano="sm">Buscando pedidos parecidos…</Texto>
-              </div>
-            ) : similares.length > 0 ? (
-              <>
-                <div className="bg-crema-2 flex items-start gap-2.5 rounded-2xl px-4 py-3.5">
-                  <Info className="text-fg-strong mt-0.5 size-4 shrink-0" />
-                  <Texto tamano="sm" tono="normal">
-                    Ya hay <strong>{similares.length}</strong>{' '}
-                    {similares.length === 1 ? 'pedido parecido' : 'pedidos parecidos'} en este
-                    sector. Si alguno es el tuyo, apóyalo en vez de crear otro.
-                  </Texto>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  {similares.map((obra, i) => (
-                    <motion.div
-                      key={obra.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.28, delay: i * 0.06 }}
-                      className="border-linea flex flex-col gap-3 rounded-2xl border bg-white p-4"
-                    >
-                      <div className="flex flex-col gap-1">
-                        <span className="text-fg-strong text-[1rem] font-semibold">
-                          {obra.titulo}
-                        </span>
-                        <span className="text-fg-subtle text-[0.8125rem]">
-                          {cifra(obra.apoyos)} {obra.apoyos === 1 ? 'vecino apoya' : 'vecinos apoyan'}
-                          {obra.porcentaje_ciudadela > 0 &&
-                            ` · ${porcentaje(obra.porcentaje_ciudadela)} del barrio`}{' '}
-                          · {obra.estado.nombre}
-                        </span>
-                      </div>
-                      {obra.descripcion && (
-                        <Texto tamano="sm" className="line-clamp-2">
-                          {obra.descripcion}
-                        </Texto>
-                      )}
-                      <BotonApoyar
-                        obraId={obra.id}
-                        apoyos={obra.apoyos}
-                        yaApoyada={obra.ya_apoyada}
-                        haySesion={haySesion}
-                        onNecesitaSesion={() => pedirVerificacion('apoyar')}
-                        tamano="xl"
-                        mostrarConteo={false}
-                        className="w-full"
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-3 py-1">
-                  <span className="bg-linea h-px flex-1" />
-                  <span className="text-fg-subtle text-[0.7rem] font-bold tracking-[0.1em] uppercase">
-                    ¿Ninguno es tu problema?
-                  </span>
-                  <span className="bg-linea h-px flex-1" />
-                </div>
-              </>
-            ) : (
-              <div className="bg-arena flex items-start gap-2.5 rounded-2xl px-4 py-3.5">
-                <Info className="text-alerta mt-0.5 size-4 shrink-0" />
-                <Texto tamano="sm" tono="normal">
-                  Nadie ha pedido nada de esto en tu sector todavía. Sé el primero.
-                </Texto>
-              </div>
-            )}
-
-            {!formularioAbierto ? (
-              <Button
-                variant={similares.length > 0 ? 'outline' : 'accion'}
-                size="xl"
-                onClick={() => setFormularioAbierto(true)}
-                className="w-full"
-              >
-                <Plus />
-                {similares.length > 0 ? 'Mi problema es diferente' : 'Publicar el primer pedido'}
-              </Button>
-            ) : (
-              <FormularioPedido
-                ciudadelaId={ciudadelaId!}
-                categoriaId={categoriaId!}
-                haySesion={haySesion}
-                onNecesitaSesion={() => pedirVerificacion('publicar')}
-                onPublicado={(codigo) => router.push(RUTAS.publico.obra(codigo))}
-              />
-            )}
-          </motion.section>
-        )}
-      </AnimatePresence>
+      <Button
+        variant="accion"
+        size="xl"
+        disabled={!listo || enviando || crear.isPending}
+        onClick={() => void enviar()}
+        className="w-full"
+      >
+        {enviando || crear.isPending ? <Loader2 className="animate-spin" /> : <Send />}
+        {enviando ? 'Enviando…' : 'Enviar mi pedido'}
+      </Button>
     </div>
+  );
+}
+
+/** Lo último que ve el vecino. Tres segundos de lectura y una salida clara. */
+function Confirmacion({ codigo, enlaceCanal }: { codigo: string; enlaceCanal?: string | null }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mx-auto flex w-full max-w-md flex-col items-center gap-5 px-4 pt-16 pb-8 text-center"
+    >
+      <span className="bg-tinta flex size-16 items-center justify-center rounded-full">
+        <Check className="size-8 text-white" strokeWidth={3} />
+      </span>
+
+      <div className="flex flex-col gap-2">
+        <Titulo nivel="h1">¡Recibido!</Titulo>
+        <Texto>
+          Tu reporte pasa a revisión del equipo técnico para sumarlo al plan de trabajo. Puedes
+          seguirlo aquí mismo cuando se publique.
+        </Texto>
+      </div>
+
+      {/* De uno a muchos y a costo cero: es todo el aviso por WhatsApp que
+          hace el sistema, y lo pide el vecino, no lo impone la campaña. */}
+      {enlaceCanal && (
+        <a
+          href={enlaceCanal}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-tinta hover:bg-tinta-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-full px-6 text-[1rem] font-semibold text-white transition-colors active:translate-y-px"
+        >
+          <MessageCircle className="size-5" />
+          Únete al canal de tu sector
+        </a>
+      )}
+
+      <div className="flex w-full flex-col gap-2">
+        <Button variant="outline" size="lg" asChild className="w-full">
+          <Link href={RUTAS.publico.obra(codigo)}>Ver mi pedido</Link>
+        </Button>
+        <Button variant="ghost" size="lg" asChild className="w-full">
+          <Link href={RUTAS.publico.inicio}>Volver al inicio</Link>
+        </Button>
+      </div>
+    </motion.div>
   );
 }
 
@@ -204,11 +339,11 @@ function Paso({
       <div className="flex items-center gap-2.5">
         <span
           className={cn(
-            'cifra flex size-7 items-center justify-center rounded-full text-[0.8125rem] font-bold transition-colors',
+            'flex size-7 items-center justify-center rounded-full text-[0.8125rem] font-bold transition-colors',
             completo ? 'bg-tinta text-white' : 'bg-crema-2 text-fg-muted',
           )}
         >
-          {completo ? <Check className="size-4" /> : numero}
+          {completo ? <Check className="size-4" strokeWidth={3} /> : numero}
         </span>
         <Titulo nivel="h3">{titulo}</Titulo>
       </div>
@@ -217,229 +352,90 @@ function Paso({
   );
 }
 
-function SelectorPastillas({
-  opciones,
-  elegido,
-  onElegir,
-  buscable = false,
+function Pastilla({
+  activa,
+  onClick,
+  texto,
 }: {
-  opciones: { id: string; nombre: string }[];
-  elegido: string | null;
-  onElegir: (id: string) => void;
-  buscable?: boolean;
+  activa: boolean;
+  onClick: () => void;
+  texto: string;
 }) {
-  const [busqueda, setBusqueda] = useState('');
-  const [verTodas, setVerTodas] = useState(false);
-
-  const filtradas = busqueda.trim()
-    ? opciones.filter((o) => o.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()))
-    : verTodas
-      ? opciones
-      : opciones.slice(0, 10);
-
   return (
-    <div className="flex flex-col gap-3">
-      {buscable && (
-        <input
-          type="search"
-          placeholder="Busca tu ciudadela…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          className="border-linea focus:border-tinta h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-all focus:ring-3"
-        />
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'min-h-11 rounded-full border-2 px-4 text-[0.875rem] font-semibold transition-colors',
+        activa
+          ? 'border-tinta bg-tinta text-white'
+          : 'border-linea text-fg-default bg-white hover:bg-crema-2',
       )}
-      <div className="flex flex-wrap gap-2">
-        {filtradas.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => onElegir(o.id)}
-            className={cn(
-              'min-h-11 rounded-full px-4 text-[0.875rem] font-medium transition-all active:scale-95',
-              elegido === o.id
-                ? 'bg-tinta text-white shadow-sm'
-                : 'border-linea hover:border-tinta border bg-white',
-            )}
-          >
-            {o.nombre}
-          </button>
-        ))}
-        {!busqueda && !verTodas && opciones.length > 10 && (
-          <button
-            type="button"
-            onClick={() => setVerTodas(true)}
-            className="text-fg-strong underline min-h-11 px-2 text-[0.875rem] font-semibold"
-          >
-            Ver las {opciones.length}
-          </button>
-        )}
-      </div>
-    </div>
+    >
+      {texto}
+    </button>
   );
 }
 
-function FormularioPedido({
-  ciudadelaId,
-  categoriaId,
-  haySesion,
-  onNecesitaSesion,
-  onPublicado,
+/**
+ * Lista cerrada con buscador. Con más de setenta sectores, desplegarlos todos
+ * convierte el paso 1 en un scroll interminable; con el buscador, escribir tres
+ * letras deja el barrio a un toque.
+ */
+function SelectorSectores({
+  ciudadelas,
+  elegido,
+  onElegir,
 }: {
-  ciudadelaId: string;
-  categoriaId: string;
-  haySesion: boolean;
-  onNecesitaSesion: () => void;
-  onPublicado: (codigo: string) => void;
+  ciudadelas: { id: string; nombre: string }[];
+  elegido: string | null;
+  onElegir: (id: string) => void;
 }) {
-  const [titulo, setTitulo] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [foto, setFoto] = useState<{ archivo: File; vista: string } | null>(null);
-  const [subiendo, setSubiendo] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const elegida = ciudadelas.find((c) => c.id === elegido);
 
-  const camara = useRef<HTMLInputElement>(null);
-  const galeria = useRef<HTMLInputElement>(null);
-  const crear = useCrearObra(onNecesitaSesion);
-
-  const tituloValido = titulo.trim().length >= 8;
-
-  function elegirArchivo(e: React.ChangeEvent<HTMLInputElement>) {
-    const archivo = e.target.files?.[0];
-    if (!archivo) return;
-    setFoto({ archivo, vista: URL.createObjectURL(archivo) });
-    e.target.value = '';
+  if (elegida && !busqueda) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Pastilla activa onClick={() => setBusqueda(' ')} texto={elegida.nombre} />
+        <button
+          type="button"
+          onClick={() => setBusqueda(' ')}
+          className="text-fg-muted hover:text-fg-strong min-h-11 px-2 text-[0.875rem] font-semibold transition-colors"
+        >
+          Cambiar
+        </button>
+      </div>
+    );
   }
 
-  async function publicar() {
-    if (!haySesion) {
-      onNecesitaSesion();
-      return;
-    }
-    if (!tituloValido) return;
-
-    let fotoUrl: string | null = null;
-    if (foto) {
-      setSubiendo(true);
-      try {
-        fotoUrl = await subirFotoDePedido(foto.archivo);
-      } catch {
-        // La foto es opcional: si falla la subida, el pedido igual se publica.
-        toast.error('No pudimos subir la foto, pero publicamos tu pedido.');
-      } finally {
-        setSubiendo(false);
-      }
-    }
-
-    const respuesta = await crear.mutateAsync({
-      ciudadelaId,
-      categoriaId,
-      titulo: titulo.trim(),
-      descripcion: descripcion.trim(),
-      fotoUrl,
-    });
-
-    if (respuesta.success && respuesta.obra) onPublicado(respuesta.obra.codigo);
-  }
+  const filtradas = ciudadelas.filter((c) => coincide(c.nombre, busqueda)).slice(0, 24);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="border-linea flex flex-col gap-4 rounded-2xl border border-dashed bg-white p-5"
-    >
-      <div className="flex flex-col gap-2">
-        <label htmlFor="titulo" className="text-fg-muted text-[0.7rem] font-bold tracking-[0.12em] uppercase">
-          ¿Qué hace falta?
-        </label>
-        <input
-          id="titulo"
-          value={titulo}
-          onChange={(e) => setTitulo(e.target.value.slice(0, 120))}
-          placeholder="Ej. Rejilla dañada en la calle 4"
-          className="border-linea focus:border-tinta h-13 w-full rounded-xl border px-4 text-base outline-none transition-all focus:ring-3"
-        />
-        <div className="flex items-center justify-between">
-          <Texto tamano="xs" tono="tenue">
-            {titulo.length < 8 ? 'Al menos 8 letras' : 'Se ve bien'}
-          </Texto>
-          <Texto tamano="xs" tono="tenue" className="cifra">
-            {titulo.length}/120
-          </Texto>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label htmlFor="detalle" className="text-fg-muted text-[0.7rem] font-bold tracking-[0.12em] uppercase">
-          Cuéntanos un poco más <span className="normal-case">(opcional)</span>
-        </label>
-        <textarea
-          id="detalle"
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value.slice(0, 1000))}
-          rows={4}
-          placeholder="Desde cuándo pasa, a cuántas casas afecta, en qué parte exacta…"
-          className="border-linea focus:border-tinta w-full resize-none rounded-xl border px-4 py-3 text-base outline-none transition-all focus:ring-3"
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-fg-muted text-[0.7rem] font-bold tracking-[0.12em] uppercase">
-          Una foto ayuda <span className="normal-case">(opcional)</span>
-        </span>
-
-        {foto ? (
-          <div className="relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={foto.vista} alt="" className="max-h-56 w-full rounded-xl object-cover" />
-            <button
-              type="button"
-              onClick={() => setFoto(null)}
-              aria-label="Quitar foto"
-              className="absolute top-2 right-2 flex size-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            {/* `capture` abre la cámara directo; sin él el navegador ofrece la
-                galería y se pierde el gesto de "sal y toma la foto ahora". */}
-            <input
-              ref={camara}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={elegirArchivo}
-              className="hidden"
-            />
-            <input ref={galeria} type="file" accept="image/*" onChange={elegirArchivo} className="hidden" />
-            <Button variant="outline" size="lg" onClick={() => camara.current?.click()} className="flex-1">
-              <Camera />
-              Tomar foto
-            </Button>
-            <Button variant="outline" size="lg" onClick={() => galeria.current?.click()} className="flex-1">
-              <ImageIcon />
-              Galería
-            </Button>
-          </div>
+    <div className="flex flex-col gap-2.5">
+      <input
+        type="search"
+        value={busqueda.trim()}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Busca tu sector…"
+        className="border-linea focus:border-tinta h-12 w-full rounded-2xl border-2 bg-white px-4 text-[0.9375rem] outline-none transition-colors"
+      />
+      <div className="flex flex-wrap gap-2">
+        {filtradas.map((c) => (
+          <Pastilla
+            key={c.id}
+            activa={elegido === c.id}
+            onClick={() => {
+              onElegir(c.id);
+              setBusqueda('');
+            }}
+            texto={c.nombre}
+          />
+        ))}
+        {filtradas.length === 0 && (
+          <Texto tamano="sm">No encontramos ese sector. Revisa cómo lo escribiste.</Texto>
         )}
       </div>
-
-      <Button
-        variant="accion"
-        size="xl"
-        disabled={!tituloValido || crear.isPending || subiendo}
-        onClick={() => void publicar()}
-        className="w-full"
-      >
-        {crear.isPending || subiendo ? <Loader2 className="animate-spin" /> : <Plus />}
-        {subiendo ? 'Subiendo la foto…' : 'Publicar mi pedido'}
-      </Button>
-
-      <Texto tamano="xs" tono="tenue" className="text-center">
-        Tu pedido pasa por una revisión rápida del equipo antes de aparecer. Te avisamos por
-        WhatsApp cuando se publique.
-      </Texto>
-    </motion.div>
+    </div>
   );
 }

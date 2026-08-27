@@ -1,137 +1,115 @@
 import { supabaseNavegador } from '@/shared/lib/supabase/client';
 
 /**
- * Verificación por WhatsApp.
+ * Identidad del vecino, sin registro.
  *
- * El código NO se genera aquí ni se guarda en ninguna tabla nuestra: lo produce
- * y lo valida Supabase Auth con su flujo nativo de teléfono. Lo único propio es
- * un "Send SMS Hook" que intercepta el código y lo entrega por WhatsApp con
- * Kapso en vez de por SMS. Menos piezas que mantener y menos formas de
- * equivocarse.
+ * No hay código de verificación en ninguna parte. Al abrir la página, el
+ * navegador crea una sesión anónima de Supabase y con eso ya existe un
+ * `auth.uid()` estable: el mismo que garantiza "un apoyo por persona", el que
+ * nombra su carpeta en storage y el que usan todas las políticas de la base.
+ * El vecino no se entera de nada de esto, que es exactamente la idea.
+ *
+ * El teléfono se pide UNA vez, en el primer apoyo, y ya no se vuelve a pedir:
+ * queda en la ficha y —para no parpadear mientras responde el servidor— también
+ * marcado en el navegador.
  */
 
-export const SEGUNDOS_PARA_REENVIAR = 45;
+/** Marca local de "a esta persona ya no hay que pedirle el número". */
+const CLAVE_CONTACTO = 'mvse:contacto';
+/** Último sector elegido, para que el filtro y el formulario lo recuerden. */
+const CLAVE_SECTOR = 'mvse:sector';
+
+export function leerLocal(clave: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(clave);
+  } catch {
+    // Navegador con el almacenamiento bloqueado. Se sigue sin recordar nada.
+    return null;
+  }
+}
+
+function escribirLocal(clave: string, valor: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(clave, valor);
+  } catch {
+    /* sin almacenamiento, se pierde el atajo pero nada se rompe */
+  }
+}
+
+export const contactoLocal = {
+  hay: () => leerLocal(CLAVE_CONTACTO) === '1',
+  marcar: () => escribirLocal(CLAVE_CONTACTO, '1'),
+};
+
+export const sectorLocal = {
+  leer: () => leerLocal(CLAVE_SECTOR),
+  guardar: (id: string) => escribirLocal(CLAVE_SECTOR, id),
+};
 
 /**
- * Pide el código. El canal `whatsapp` se manda con un POST crudo porque el SDK
- * de Supabase no expone ese parámetro; si el POST falla se cae a SMS, que es
- * mejor que dejar al vecino sin poder entrar.
+ * Devuelve la sesión, creándola si hace falta.
+ *
+ * Se llama en cuanto carga la parte pública, no cuando el vecino toca Apoyar:
+ * crear la sesión toma un viaje al servidor, y hacerlo en el momento del toque
+ * añadiría medio segundo justo en el único gesto que importa.
  */
-/** Error con un motivo que se le puede mostrar tal cual al vecino. */
-export class ErrorOtp extends Error {
-  constructor(
-    public readonly motivo:
-      | 'demasiado_pronto'
-      | 'numero_invalido'
-      | 'canal_no_disponible'
-      | 'desconocido',
-    mensaje: string,
-    /** Segundos que faltan, cuando el servidor los informa. */
-    public readonly esperaSegundos?: number,
-  ) {
-    super(mensaje);
-  }
-}
-
-export async function pedirCodigo(telefono: string): Promise<void> {
-  const respuesta = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/otp`, {
-    method: 'POST',
-    headers: {
-      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ phone: telefono, channel: 'whatsapp', create_user: true }),
-  }).catch(() => null);
-
-  if (respuesta?.ok) return;
-
-  // Pedir dos veces seguidas es lo más común que va a pasar, y merece un
-  // mensaje propio: "espera 40 segundos" es accionable, "algo salió mal" no.
-  if (respuesta?.status === 429) {
-    const cuerpo = await respuesta.json().catch(() => ({}) as { msg?: string });
-    const segundos = Number(/after (\d+) seconds/.exec(cuerpo?.msg ?? '')?.[1]);
-    throw new ErrorOtp(
-      'demasiado_pronto',
-      Number.isFinite(segundos)
-        ? `Espera ${segundos} segundos antes de pedir otro código.`
-        : 'Acabas de pedir un código. Espera un momento antes de pedir otro.',
-      Number.isFinite(segundos) ? segundos : undefined,
-    );
-  }
-
-  // El canal `whatsapp` va por POST crudo porque el SDK no lo expone. Si ese
-  // camino falla por otra razón, se reintenta por SMS: es mejor que dejar al
-  // vecino sin poder entrar.
+export async function asegurarSesion() {
   const supabase = supabaseNavegador();
-  const { error } = await supabase.auth.signInWithOtp({ phone: telefono });
-  if (!error) return;
 
-  if (error.status === 429) {
-    throw new ErrorOtp('demasiado_pronto', 'Espera un momento antes de pedir otro código.');
-  }
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return data.session;
 
-  // El orden importa. "Phone logins are disabled" y "Unsupported phone
-  // provider" también contienen la palabra "phone", y culpar al número por
-  // ellos manda al vecino a corregir algo que no está mal mientras el problema
-  // real es de configuración del ambiente. Costó horas averiguarlo una vez.
-  const mensaje = error.message.toLowerCase();
-  const esDeConfiguracion =
-    mensaje.includes('disabled') ||
-    mensaje.includes('unsupported') ||
-    mensaje.includes('provider') ||
-    mensaje.includes('not enabled');
-
-  if (esDeConfiguracion) {
-    throw new ErrorOtp(
-      'canal_no_disponible',
-      'La verificación por WhatsApp no está disponible en este momento. No es tu número: avísale al equipo.',
-    );
-  }
-  if (mensaje.includes('phone') || mensaje.includes('format')) {
-    throw new ErrorOtp(
-      'numero_invalido',
-      'Ese número no parece válido. Revísalo e intenta otra vez.',
-    );
-  }
-  throw new ErrorOtp('desconocido', 'No pudimos enviar el código. Intenta otra vez en un momento.');
-}
-
-/** `type: 'sms'` también valida los códigos entregados por WhatsApp. */
-export async function verificarCodigo(telefono: string, codigo: string): Promise<void> {
-  const supabase = supabaseNavegador();
-  const { error } = await supabase.auth.verifyOtp({ phone: telefono, token: codigo, type: 'sms' });
+  const { data: nueva, error } = await supabase.auth.signInAnonymously();
   if (error) throw new Error(error.message);
+  return nueva.session;
 }
 
 export interface Vecino {
-  id: string;
-  ciudad_id: string;
   ciudadela_id: string | null;
-  nombre: string | null;
-  necesita_ciudadela: boolean;
-  necesita_perfil: boolean;
+  tiene_telefono: boolean;
+  quiere_canal: boolean;
 }
 
-/** Alta idempotente tras verificar. El teléfono se lee del token, no del formulario. */
-export async function asegurarVecino(
-  ciudadSlug: string,
-  ciudadelaId?: string | null,
-  origen: 'directo' | 'qr' | 'compartido' = 'directo',
-): Promise<Vecino> {
+/** Qué sabemos ya de quien está mirando. `null` si nunca participó. */
+export async function vecinoActual(): Promise<Vecino | null> {
   const supabase = supabaseNavegador();
-  const { data, error } = await supabase.rpc('vecino_asegurar', {
-    p_ciudad_slug: ciudadSlug,
-    p_ciudadela_id: ciudadelaId ?? undefined,
-    p_origen: origen,
+  const { data, error } = await supabase.rpc('vecino_yo');
+  if (error) throw new Error(error.message);
+  return (data as unknown as { vecino: Vecino | null }).vecino;
+}
+
+export interface RespuestaContacto {
+  success: boolean;
+  error_code?: string;
+  enlace_canal?: string | null;
+}
+
+/** Lo que graba el modal de un solo campo. */
+export async function guardarContacto(entrada: {
+  ciudadSlug: string;
+  telefono: string;
+  ciudadelaId?: string | null;
+  quiereCanal?: boolean;
+  origen?: 'directo' | 'qr' | 'compartido';
+}): Promise<RespuestaContacto> {
+  const supabase = supabaseNavegador();
+  const { data, error } = await supabase.rpc('vecino_guardar_contacto', {
+    p_ciudad_slug: entrada.ciudadSlug,
+    p_telefono: entrada.telefono,
+    p_ciudadela_id: entrada.ciudadelaId ?? undefined,
+    p_quiere_canal: entrada.quiereCanal ?? false,
+    p_origen: entrada.origen ?? 'directo',
   });
   if (error) throw new Error(error.message);
 
-  const respuesta = data as unknown as { success: boolean; error_code?: string; vecino?: Vecino };
-  if (!respuesta.success || !respuesta.vecino) throw new Error(respuesta.error_code ?? 'error');
-  return respuesta.vecino;
+  const respuesta = data as unknown as RespuestaContacto;
+  if (respuesta.success) contactoLocal.marcar();
+  return respuesta;
 }
 
-export async function elegirCiudadela(ciudadelaId: string) {
+export async function elegirSector(ciudadelaId: string) {
   const supabase = supabaseNavegador();
   const { data, error } = await supabase.rpc('vecino_elegir_ciudadela', {
     p_ciudadela_id: ciudadelaId,
@@ -140,34 +118,7 @@ export async function elegirCiudadela(ciudadelaId: string) {
   return data as unknown as { success: boolean; error_code?: string };
 }
 
-export async function guardarPerfil(perfil: {
-  nombre?: string;
-  edadRango?: string;
-  genero?: string;
-}) {
-  const supabase = supabaseNavegador();
-  const { data, error } = await supabase.rpc('vecino_perfilar', {
-    p_nombre: perfil.nombre ?? undefined,
-    p_edad_rango: perfil.edadRango ?? undefined,
-    p_genero: perfil.genero ?? undefined,
-  });
-  if (error) throw new Error(error.message);
-  return data as unknown as { success: boolean };
-}
-
-export async function darseDeBaja() {
-  const supabase = supabaseNavegador();
-  const { data, error } = await supabase.rpc('vecino_darse_de_baja');
-  if (error) throw new Error(error.message);
-  return data as unknown as { success: boolean };
-}
-
-export async function sesionActual() {
-  const supabase = supabaseNavegador();
-  const { data } = await supabase.auth.getSession();
-  return data.session;
-}
-
+/** La usa el panel, no la parte pública: ahí sí hay correo y contraseña. */
 export async function cerrarSesion() {
   const supabase = supabaseNavegador();
   await supabase.auth.signOut();

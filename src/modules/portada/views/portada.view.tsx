@@ -4,368 +4,161 @@ import { useState } from 'react';
 
 import Link from 'next/link';
 
-import {
-  ArrowRight,
-  ChevronDown,
-  HeartHandshake,
-  Landmark,
-  MapPin,
-  Megaphone,
-  Play,
-  Plus,
-  Users,
-} from 'lucide-react';
-import { motion } from 'motion/react';
+import { ChevronDown, MapPin, Megaphone, Play, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { Texto, Titulo } from '@/components/typography';
 import { Button } from '@/components/ui/button';
 import { useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
-import { useObras, useRankingBarrio } from '@/modules/obras/hooks/use-obras';
+import {
+  TarjetaObra,
+  TarjetaObraEsqueleto,
+  pesosDeLista,
+} from '@/modules/obras/components/tarjeta-obra';
+import { useObras } from '@/modules/obras/hooks/use-obras';
 import { CifraAnimada } from '@/modules/shared/components/cifra-animada';
 import { usePortal } from '@/modules/shared/portal.provider';
 import { RUTAS } from '@/shared/config/rutas';
-import { cifra, cn } from '@/shared/lib/utils';
+import { cifra } from '@/shared/lib/utils';
 
 import { SelectorSector } from '../components/selector-sector';
-import { type ItemTop, TarjetaTop, TarjetaTopEsqueleto } from '../components/tarjeta-top';
 
-const suave = [0.22, 1, 0.36, 1] as const;
+/** Cuántas tarjetas antes de "Ver más". Diez llenan la pantalla sin cansar. */
+const EN_PORTADA = 10;
 
-export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string | null }) {
-  const { ciudad, portal, cifras, haySesion, pedirVerificacion } = usePortal();
-  const [verVideo, setVerVideo] = useState(false);
+/**
+ * La portada.
+ *
+ * Todo lo que se ve antes de bajar dice una sola cosa: qué necesita tu sector.
+ * No hay foto de cartelera del candidato — la propaganda tradicional en el
+ * primer pliegue activa el filtro anti-política y la persona rebota. Lo que hay
+ * es el titular, el selector de sector y las causas más apoyadas, con su botón.
+ *
+ * Nadie tiene que registrarse para nada de esto: se entra, se mira y se apoya.
+ */
+export function PortadaView() {
+  const { ciudad, portal, cifras, sector, elegirSector } = usePortal();
   const [selectorAbierto, setSelectorAbierto] = useState(false);
-  const [sector, setSector] = useState<string | null>(ciudadelaGuardada ?? null);
+  const [verVideo, setVerVideo] = useState(false);
 
   const { data: ciudadelas = [] } = useCiudadelas(ciudad.id);
   const nombreSector = ciudadelas.find((c) => c.id === sector)?.nombre;
 
-  // El top se ve desde el primer segundo, sin pedirle nada a nadie: por defecto
-  // es el de toda la ciudad, y si el vecino elige su sector, se vuelve el suyo.
-  const topCiudad = useObras(ciudad.slug, { orden: 'apoyos', limite: 10 });
-  const topSector = useRankingBarrio(sector, 10);
+  const { data, isLoading } = useObras(ciudad.slug, {
+    ciudadelaId: sector,
+    orden: 'apoyos',
+    limite: EN_PORTADA,
+  });
 
-  const cargando = sector ? topSector.isLoading : topCiudad.isLoading;
-  const items: ItemTop[] = sector
-    ? normalizarSector(topSector.data?.items ?? [])
-    : normalizarCiudad(topCiudad.data?.items ?? []);
+  const obras = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pesos = pesosDeLista(obras);
 
-  const elegirSector = (id: string | null) => {
-    setSector(id);
-    try {
-      if (id) localStorage.setItem('mvse:ciudadela', id);
-      else localStorage.removeItem('mvse:ciudadela');
-    } catch {
-      // Modo incógnito: se pierde la preferencia y no pasa nada más.
-    }
-  };
+  const hayVideo = Boolean(portal?.video_url);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 pt-4 pb-10 md:gap-14 md:px-6 lg:max-w-7xl lg:pt-8">
-      {/* ============================================================ hero == */}
-      <motion.section
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: suave }}
-        className="relative overflow-hidden rounded-[28px] md:rounded-[40px]"
-        style={{
-          background: `linear-gradient(150deg, var(--color-marca) 0%, color-mix(in oklab, var(--color-marca) 72%, black) 100%)`,
-        }}
-      >
-        {/* La foto del partido de fondo, si la campaña la cargó. El velo de
-            marca la mantiene legible sin taparla del todo. */}
-        {portal?.banner_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={portal.banner_url}
-            alt=""
-            className="absolute inset-0 size-full object-cover"
-          />
-        )}
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background: portal?.banner_url
-              ? `linear-gradient(105deg, color-mix(in oklab, var(--color-marca) 88%, black) 12%, color-mix(in oklab, var(--color-marca) 72%, black) 55%, color-mix(in oklab, var(--color-marca) 45%, transparent) 100%)`
-              : 'radial-gradient(circle at 18% 12%, rgb(255 255 255 / 0.10) 0.5px, transparent 0.6px), radial-gradient(circle at 68% 62%, rgb(255 255 255 / 0.10) 0.5px, transparent 0.6px)',
-            backgroundSize: portal?.banner_url ? undefined : '26px 26px, 34px 34px',
-          }}
-        />
+    <>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-10 md:px-6 md:pt-10">
+        {/* ------------------------------------------------------- titular -- */}
+        <header className="flex flex-col gap-3">
+          <Titulo nivel="display" className="max-w-[16ch]">
+            ¿Qué necesita tu sector?
+          </Titulo>
+          <Texto tamano="lg" className="max-w-[46ch]">
+            {portal?.hero_subtitulo ||
+              `Dinos qué le hace falta a tu barrio y apoya lo que piden tus vecinos. Lo más apoyado entra al plan de trabajo${portal?.candidato_nombre ? ` de ${portal.candidato_nombre}` : ''}.`}
+          </Texto>
 
-        <div className="relative flex flex-col gap-6 p-6 md:flex-row md:items-center md:gap-12 md:p-12 lg:p-16">
-          <div className="flex flex-1 flex-col gap-5">
-            {/* Avatar + identidad del candidato, siempre visibles arriba. */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1, ease: suave }}
-              className="flex items-center gap-3.5"
-            >
-              {portal?.foto_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={portal.foto_url}
-                  alt={portal.candidato_nombre}
-                  className="size-16 rounded-full border-[3px] border-white/40 object-cover shadow-md md:size-20"
-                />
-              ) : (
-                <div className="flex size-16 items-center justify-center rounded-full border-[3px] border-white/25 bg-white/15 md:size-20">
-                  <Users className="size-7 text-white/80" />
-                </div>
-              )}
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[1.125rem] leading-tight font-bold tracking-[-0.02em] text-white md:text-[1.375rem]">
-                  {portal?.candidato_nombre || ciudad.nombre}
-                </span>
-                {(portal?.candidato_cargo || portal?.partido) && (
-                  <span className="w-fit rounded-full bg-white/15 px-3 py-1 text-[0.75rem] font-semibold text-white/90 backdrop-blur-sm">
-                    {[portal?.candidato_cargo, portal?.partido].filter(Boolean).join(' · ')}
-                  </span>
-                )}
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.18, ease: suave }}
-              className="flex flex-col gap-4"
-            >
-              <Titulo nivel="display" className="max-w-[16ch] text-white">
-                {portal?.eslogan || `${ciudad.nombre} lo decidimos entre todos`}
-              </Titulo>
-              <Texto tamano="lg" className="max-w-[46ch] text-white/85">
-                Pide la obra que le hace falta a tu barrio y apoya las de tus vecinos. Las más
-                apoyadas entran al plan de obras.
-              </Texto>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.26, ease: suave }}
-              className="mt-1 flex flex-wrap gap-3"
-            >
-              {/* Blanco sobre el hero de color: es el mayor contraste posible
-                  y no compite con la marca del candidato. */}
-              <Button size="xl" variant="claro" asChild>
-                <Link href={RUTAS.publico.publicar}>
-                  <Plus className="size-5" />
-                  Publicar mi pedido
-                </Link>
-              </Button>
-              <Button
-                size="xl"
-                variant="outline"
-                asChild
-                className="border-white/40 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
-              >
-                <Link href={RUTAS.publico.obras}>
-                  Ver todas las obras
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-            </motion.div>
-          </div>
-
-          {/* Video con portada y botón: nada de reproducción automática, que en
-              datos móviles gasta plata ajena y se siente invasivo. */}
-          {portal?.video_url && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.3, ease: suave }}
-              className="w-full md:w-[24rem] lg:w-[30rem]"
-            >
-              {verVideo ? (
-                <div className="aspect-video overflow-hidden rounded-3xl bg-black shadow-xl">
-                  <video
-                    src={portal.video_url}
-                    controls
-                    autoPlay
-                    playsInline
-                    className="size-full object-contain"
-                  />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setVerVideo(true)}
-                  className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-3xl bg-black/25 shadow-xl ring-1 ring-white/20 transition-all active:scale-[0.99]"
-                >
-                  {portal.video_portada_url && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={portal.video_portada_url}
-                      alt=""
-                      className="absolute inset-0 size-full object-cover opacity-85 transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                  )}
-                  <span className="bg-tinta relative flex size-16 items-center justify-center rounded-full shadow-lg transition-transform group-hover:scale-110">
-                    <Play className="ml-0.5 size-7 fill-white text-white" />
-                  </span>
-                  <span className="absolute bottom-3 left-4 text-[0.8125rem] font-medium text-white/90">
-                    Conoce mi propuesta
-                  </span>
-                </button>
-              )}
-            </motion.div>
-          )}
-        </div>
-      </motion.section>
-
-      {/* =================================================== prueba social == */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-60px' }}
-        transition={{ duration: 0.45, ease: suave }}
-        className="grid grid-cols-3 gap-3 md:gap-5"
-      >
-        {/* Blanco con borde negro, como Meetup: el color queda para el icono y
-            el número lleva la tinta. */}
-        {[
-          { valor: cifras.vecinos, etiqueta: 'vecinos verificados', Icono: Users },
-          { valor: cifras.obras, etiqueta: 'obras pedidas', Icono: Landmark },
-          { valor: cifras.apoyos, etiqueta: 'apoyos sumados', Icono: HeartHandshake },
-        ].map((d) => (
-          <div
-            key={d.etiqueta}
-            className="border-tinta flex flex-col gap-2 rounded-3xl border-2 bg-white p-4 transition-transform hover:-translate-y-0.5 md:gap-3 md:p-7"
-          >
-            <d.Icono className="text-tinta size-7 md:size-9" strokeWidth={1.8} />
-            <CifraAnimada
-              valor={d.valor}
-              className="cifra text-tinta text-[1.5rem] leading-none font-extrabold md:text-[2.5rem]"
-            />
-            <span className="text-fg-muted text-[0.75rem] leading-tight font-medium md:text-[0.875rem]">
-              {d.etiqueta}
-            </span>
-          </div>
-        ))}
-      </motion.section>
-
-      {/* ======================================================== el top 10 == */}
-      <section className="flex flex-col gap-5">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <Titulo nivel="h1">
-              {nombreSector ? `Lo más pedido en ${nombreSector}` : 'Las obras más pedidas'}
-            </Titulo>
-            <Texto>
-              {nombreSector
-                ? topSector.data && topSector.data.vecinos_ciudadela > 0
-                  ? `${cifra(topSector.data.vecinos_ciudadela)} vecinos verificados de este sector ya están participando.`
-                  : 'Esto es lo que tus vecinos más quieren que se haga.'
-                : `El top 10 de ${ciudad.nombre}. Apoya las que también te hacen falta a ti.`}
-            </Texto>
-          </div>
-
-          {/* El filtro de sector, imposible de no ver: una píldora grande que
-              abre el buscador en un modal. */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => setSelectorAbierto(true)}
-              className={cn(
-                'flex min-h-12 items-center gap-2.5 rounded-full border-2 px-5 text-[0.9375rem] font-semibold shadow-xs transition-all active:translate-y-px',
-                'border-tinta text-fg-strong bg-white hover:bg-crema-2',
-              )}
-            >
-              <MapPin className="size-4.5" />
-              {nombreSector ?? 'Elegir mi sector'}
-              <ChevronDown className="size-4 opacity-60" />
-            </button>
-            {sector && (
+          <div className="flex flex-wrap items-center gap-3">
+            {/* El video del candidato existe, pero como oferta y no como
+                obstáculo: quien quiere oírlo toca; quien viene a reportar su
+                problema no tiene que pasar por encima de él. */}
+            {hayVideo && (
               <button
                 type="button"
-                onClick={() => elegirSector(null)}
-                className="text-fg-muted hover:text-fg-strong min-h-12 rounded-full px-3 text-[0.875rem] font-semibold transition-colors"
+                onClick={() => setVerVideo(true)}
+                className="border-tinta text-fg-strong hover:bg-crema-2 flex min-h-11 items-center gap-2 rounded-full border-2 bg-white px-4 text-[0.875rem] font-semibold transition-colors"
               >
-                Ver toda la ciudad
+                <span className="bg-tinta flex size-6 items-center justify-center rounded-full">
+                  <Play className="size-3 fill-white text-white" />
+                </span>
+                Ver el mensaje del candidato
               </button>
             )}
+            {portal?.partido && (
+              <Texto tamano="sm" tono="tenue">
+                {portal.partido}
+                {portal.cedula ? ` · C.I. ${portal.cedula}` : ''}
+              </Texto>
+            )}
           </div>
-        </div>
+        </header>
 
-        {cargando ? (
-          <div className="grid gap-3.5 lg:grid-cols-2 lg:gap-4">
-            {[0, 1, 2, 3].map((i) => (
-              <TarjetaTopEsqueleto key={i} indice={i} />
+        {/* ------------------------------------------------ selector sector -- */}
+        <button
+          type="button"
+          onClick={() => setSelectorAbierto(true)}
+          className="border-tinta hover:bg-crema-2 flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 bg-white px-4 text-left transition-colors"
+        >
+          <span className="bg-tinta flex size-9 shrink-0 items-center justify-center rounded-full">
+            <MapPin className="size-4.5 text-white" />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-fg-subtle text-[0.6875rem] font-bold tracking-wide uppercase">
+              Estás viendo
+            </span>
+            <span className="text-fg-strong truncate text-[1rem] font-bold">
+              {nombreSector ?? `Todo el cantón · ${ciudad.nombre}`}
+            </span>
+          </span>
+          <ChevronDown className="text-fg-muted size-5 shrink-0" />
+        </button>
+
+        {/* ---------------------------------------------------------- feed -- */}
+        {isLoading ? (
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <TarjetaObraEsqueleto key={i} indice={i} />
             ))}
           </div>
-        ) : items.length === 0 ? (
-          <div className="border-linea flex flex-col items-center gap-2 rounded-3xl border border-dashed bg-white px-6 py-12 text-center">
-            <Texto peso="fuerte" tono="normal">
-              Todavía no hay pedidos {nombreSector ? 'en este sector' : 'aquí'}.
-            </Texto>
-            <Texto tamano="sm">Sé quien publique el primero: toma un minuto.</Texto>
-            <Button variant="accion" className="mt-2" asChild>
-              <Link href={RUTAS.publico.publicar}>
-                <Plus className="size-4" />
-                Publicar mi pedido
-              </Link>
-            </Button>
-          </div>
+        ) : obras.length === 0 ? (
+          <SectorVacio nombreSector={nombreSector} />
         ) : (
-          <>
-            <div className="grid gap-3.5 lg:grid-cols-2 lg:gap-4">
-              {items.map((obra, i) => (
-                <TarjetaTop
+          <div className="flex flex-col gap-3">
+            <AnimatePresence mode="popLayout">
+              {obras.map((obra, i) => (
+                <TarjetaObra
                   key={obra.id}
                   obra={obra}
+                  posicion={i + 1}
+                  peso={pesos[i]}
                   indice={i}
-                  haySesion={haySesion}
-                  onNecesitaSesion={() => pedirVerificacion('apoyar')}
                 />
               ))}
-            </div>
-            <Button size="lg" variant="outline" className="self-center" asChild>
-              <Link href={RUTAS.publico.obras}>
-                Ver el ranking completo
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </>
-        )}
-      </section>
+            </AnimatePresence>
 
-      {/* ===================================================== corte oscuro == */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-60px' }}
-        transition={{ duration: 0.45, ease: suave }}
-        className="bg-tinta relative overflow-hidden rounded-[28px] p-7 md:rounded-[40px] md:p-14"
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full opacity-25 blur-3xl"
-          style={{ background: 'var(--color-marca)' }}
-        />
-        <div className="relative flex flex-col items-start gap-5 md:flex-row md:items-center md:justify-between md:gap-10">
-          <div className="flex flex-col gap-2.5">
-            <span className="flex w-fit items-center gap-2 rounded-full bg-white/15 px-3.5 py-1.5 text-[0.75rem] font-bold tracking-[0.1em] text-white uppercase">
-              <Megaphone className="size-3.5" />
-              Tu voz cuenta
-            </span>
-            <Titulo nivel="h1" className="max-w-[22ch] text-white">
-              ¿Falta la obra de tu barrio en la lista?
-            </Titulo>
-            <Texto tamano="lg" className="max-w-[48ch] text-white/70">
-              Publicarla toma un minuto y solo necesitas tu WhatsApp. Cada apoyo la sube en la
-              lista de prioridades.
-            </Texto>
+            {total > obras.length && (
+              <Button variant="outline" size="lg" asChild className="w-full">
+                <Link href={RUTAS.publico.obras}>
+                  Ver las {cifra(total - obras.length)} restantes
+                </Link>
+              </Button>
+            )}
           </div>
-          <Button size="xl" variant="claro" className="shrink-0" asChild>
-            <Link href={RUTAS.publico.publicar}>
-              <Plus className="size-5" />
-              Publicar mi pedido
-            </Link>
-          </Button>
-        </div>
-      </motion.section>
+        )}
+
+        {/* Las cifras van al final, no arriba: al que llega no le interesan
+            hasta que ya vio de qué se trata. */}
+        {cifras.apoyos > 0 && (
+          <div className="border-linea flex items-center justify-around gap-4 rounded-2xl border bg-white px-4 py-5">
+            <Cifra valor={cifras.apoyos} etiqueta="apoyos" />
+            <span className="bg-linea h-8 w-px" aria-hidden />
+            <Cifra valor={cifras.obras} etiqueta="causas" />
+            <span className="bg-linea h-8 w-px" aria-hidden />
+            <Cifra valor={cifras.vecinos} etiqueta="vecinos" />
+          </div>
+        )}
+      </div>
 
       <SelectorSector
         abierto={selectorAbierto}
@@ -375,66 +168,82 @@ export function PortadaView({ ciudadelaGuardada }: { ciudadelaGuardada?: string 
         nombreCiudad={ciudad.nombre}
         onElegir={elegirSector}
       />
-    </div>
+
+      <AnimatePresence>
+        {verVideo && portal?.video_url && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setVerVideo(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          >
+            <button
+              type="button"
+              aria-label="Cerrar el video"
+              onClick={() => setVerVideo(false)}
+              className="absolute top-4 right-4 flex size-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm"
+            >
+              <X className="size-5" />
+            </button>
+            {/* El video lo sube el equipo desde el panel; no hay pista de
+                subtítulos que ofrecer aquí. */}
+            <video
+              src={portal.video_url}
+              poster={portal.video_portada_url ?? undefined}
+              controls
+              autoPlay
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[85dvh] w-full max-w-sm rounded-2xl"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
-/* ------------------------------------------------------------------------- */
-
-interface ObraCiudad {
-  id: string;
-  codigo: string;
-  titulo: string;
-  foto_url: string | null;
-  apoyos: number;
-  ciudadela: { nombre: string };
-  categoria: { nombre: string };
-  estado: { nombre: string; color: string };
-  ya_apoyada: boolean;
+/**
+ * Un sector sin causas no es un error, es la mejor oportunidad de la página:
+ * quien lo mira es el primero de su barrio y hay que decírselo así.
+ */
+function SectorVacio({ nombreSector }: { nombreSector?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="border-tinta flex flex-col items-center gap-4 rounded-3xl border-2 bg-white px-6 py-10 text-center"
+    >
+      <span className="bg-tinta flex size-14 items-center justify-center rounded-full">
+        <Megaphone className="size-7 text-white" />
+      </span>
+      <div className="flex flex-col gap-1.5">
+        <Titulo nivel="h2">
+          {nombreSector
+            ? `En ${nombreSector} todavía no hay nada registrado`
+            : 'Todavía no hay causas registradas'}
+        </Titulo>
+        <Texto>Sé el primero en decirle al equipo qué hace falta aquí.</Texto>
+      </div>
+      <Button variant="accion" size="xl" asChild className="w-full max-w-xs">
+        <Link href={RUTAS.publico.publicar}>
+          <Megaphone />
+          Publicar lo que falta
+        </Link>
+      </Button>
+    </motion.div>
+  );
 }
 
-function normalizarCiudad(items: ObraCiudad[]): ItemTop[] {
-  const maximo = Math.max(...items.map((o) => o.apoyos), 1);
-  return items.map((o, i) => ({
-    id: o.id,
-    codigo: o.codigo,
-    titulo: o.titulo,
-    foto_url: o.foto_url,
-    apoyos: o.apoyos,
-    peso: (o.apoyos / maximo) * 100,
-    posicion: i + 1,
-    categoria: o.categoria.nombre,
-    ciudadela: o.ciudadela.nombre,
-    estado: o.estado,
-    ya_apoyada: o.ya_apoyada,
-  }));
-}
-
-interface ObraSector {
-  id: string;
-  codigo: string;
-  titulo: string;
-  foto_url: string | null;
-  apoyos: number;
-  porcentaje_ciudadela: number;
-  posicion: number;
-  categoria: { nombre: string };
-  estado: { nombre: string; color: string };
-  ya_apoyada: boolean;
-}
-
-function normalizarSector(items: ObraSector[]): ItemTop[] {
-  const maximo = Math.max(...items.map((o) => o.porcentaje_ciudadela), 1);
-  return items.map((o) => ({
-    id: o.id,
-    codigo: o.codigo,
-    titulo: o.titulo,
-    foto_url: o.foto_url,
-    apoyos: o.apoyos,
-    peso: (o.porcentaje_ciudadela / maximo) * 100,
-    posicion: o.posicion,
-    categoria: o.categoria.nombre,
-    estado: o.estado,
-    ya_apoyada: o.ya_apoyada,
-  }));
+function Cifra({ valor, etiqueta }: { valor: number; etiqueta: string }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <CifraAnimada
+        valor={valor}
+        className="text-fg-strong cifra text-[1.5rem] leading-none font-extrabold"
+      />
+      <span className="text-fg-subtle text-[0.75rem] font-semibold">{etiqueta}</span>
+    </div>
+  );
 }

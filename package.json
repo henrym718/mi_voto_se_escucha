@@ -13,11 +13,9 @@
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
     "supabase:types": "supabase gen types typescript --local > src/types/database.types.ts",
-    "supabase:fn": "supabase functions serve --no-verify-jwt",
     "smokes": "bash ./scripts/run-smokes.sh",
-    "e2e": "node --env-file=.env.local scripts/e2e-vecino.mjs",
-    "whatsapp:plantillas": "node --env-file=.env.local scripts/crear-plantillas-whatsapp.mjs",
-    "verificar": "pnpm typecheck && pnpm lint && pnpm smokes && pnpm e2e"
+    "datos:prueba": "node scripts/datos-de-prueba.mjs",
+    "verificar": "pnpm typecheck && pnpm lint && pnpm smokes"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
