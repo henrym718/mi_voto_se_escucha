@@ -25,10 +25,9 @@ on:
     branches: [staging]
     paths:
       - 'supabase/migrations/**'
-      - 'supabase/functions/**'
       - 'supabase/config.toml'
       - 'supabase/seed.sql'
-      # Los ejecuta este pipeline (smokes, e2e y alta del equipo): si cambian,
+      # Los ejecuta este pipeline (smokes y alta del equipo): si cambian,
       # hay que re-correr.
       - 'scripts/**'
       - '.github/workflows/desplegar-staging.yml'
@@ -43,7 +42,7 @@ jobs:
   # un job aparte. Si fallan, el job se detiene antes de tocar la base remota,
   # que es la única garantía que hacía falta conservar.
   desplegar_staging:
-    name: Reset DB + Edge Functions + auth (staging)
+    name: Reset DB + auth (staging)
     runs-on: ubuntu-latest
     env:
       PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
@@ -72,13 +71,6 @@ jobs:
         env:
           MVSE_DB_CONTAINER: supabase_db_mivotoseescucha
 
-      - name: Recorrido del vecino de punta a punta
-        run: |
-          echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" > .env.ci
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase status -o json | jq -r .ANON_KEY)" >> .env.ci
-          echo "NEXT_PUBLIC_CIUDAD_POR_DEFECTO=el-triunfo" >> .env.ci
-          node --env-file=.env.ci scripts/e2e-vecino.mjs
-
       # Se apaga antes de tocar el remoto: todos los pasos que siguen llevan
       # --db-url o --project-ref explícito, pero dejar la pila local encendida
       # solo invita a que un comando futuro se equivoque de destino.
@@ -92,84 +84,29 @@ jobs:
           if [ -z "$DB_URL" ]; then echo "::error::Falta el secreto STAGING_DB_URL"; exit 1; fi
           supabase db reset --db-url "$DB_URL" --yes
 
-      - name: Guardar secretos en el Vault
-        # El cron los lee de aquí. Se borran y se vuelven a crear en cada
-        # despliegue para que no queden valores viejos de un ambiente anterior.
-        run: |
-          psql "$DB_URL" -c "delete from vault.secrets where name in ('url_base_funciones','secreto_worker');"
-          psql "$DB_URL" -c "select vault.create_secret('https://${PROJECT_REF}.supabase.co/functions/v1', 'url_base_funciones');"
-          psql "$DB_URL" -c "select vault.create_secret('${{ secrets.STAGING_WORKER_SECRET }}', 'secreto_worker');"
-
-      - name: Inyectar secretos a las Edge Functions
+      - name: Configurar auth (sesiones anónimas y URL del sitio)
         env:
-          KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
-          KAPSO_PHONE_NUMBER_ID: ${{ secrets.KAPSO_PHONE_NUMBER_ID }}
-          SEND_SMS_HOOK_SECRET: ${{ secrets.STAGING_SEND_SMS_HOOK_SECRET }}
-          WORKER_SECRET: ${{ secrets.STAGING_WORKER_SECRET }}
-        run: |
-          # Nada de esto se escribe a mano en el panel de Supabase: si un valor
-          # solo vive en la interfaz, se pierde en el siguiente reset.
-          {
-            echo "KAPSO_API_KEY=\"$KAPSO_API_KEY\""
-            echo "KAPSO_PHONE_NUMBER_ID=\"$KAPSO_PHONE_NUMBER_ID\""
-            echo "KAPSO_TEMPLATE_PREFIX=\"mvse_staging\""
-            echo "KAPSO_TEMPLATE_LANG=\"es\""
-            echo "KAPSO_OTP_TEMPLATE=\"mvse_staging_otp\""
-            echo "SEND_SMS_HOOK_SECRET=\"$SEND_SMS_HOOK_SECRET\""
-            echo "WORKER_SECRET=\"$WORKER_SECRET\""
-            echo "APP_BASE_URL=\"${{ vars.STAGING_SITIO_URL }}\""
-          } > /tmp/funciones.env
-          supabase secrets set --env-file /tmp/funciones.env --project-ref "$PROJECT_REF"
-          rm -f /tmp/funciones.env
-
-      - name: Desplegar Edge Functions
-        run: supabase functions deploy --project-ref "$PROJECT_REF"
-
-      - name: Configurar auth (teléfono, hook de WhatsApp y números de prueba)
-        env:
-          SEND_SMS_HOOK_SECRET: ${{ secrets.STAGING_SEND_SMS_HOOK_SECRET }}
-          # VARIABLE y no Secret, a propósito (patrón Pronto): un Secret no se
-          # puede volver a leer una vez guardado, y estos números hay que
-          # consultarlos cada vez que alguien del equipo entra a staging. No son
-          # credenciales reales: cuentas de prueba en una base que se resetea
-          # entera en cada despliegue.
-          # Formato: 593900000001=123456,593900000002=123456 (SIN «+»)
-          TEST_OTP: ${{ vars.STAGING_TEST_OTP }}
           SITIO_URL: ${{ vars.STAGING_SITIO_URL }}
         run: |
-          # Guardas ANTES del PATCH. Este paso ya murió una vez en silencio y el
-          # resultado fue teléfono apagado, «verificación no disponible» para
-          # todo el mundo y cuenta del equipo sin crear (los pasos siguientes
-          # nunca corrieron). Mejor un error que diga QUÉ arreglar que el 400
-          # crudo de la Management API.
-          if [ -z "$TEST_OTP" ]; then
-            echo "::error::Falta la Variable STAGING_TEST_OTP (Settings → Secrets and variables → Actions → Variables). Formato: 593900000001=123456,…"
-            exit 1
-          fi
-          if ! printf '%s' "$TEST_OTP" | grep -qE '^5939[0-9]{8}=[0-9]{6}(,5939[0-9]{8}=[0-9]{6})*$'; then
-            echo "::error::STAGING_TEST_OTP mal escrita: cada par es 5939XXXXXXXX=NNNNNN (12 dígitos SIN «+» ni espacios, código de 6 dígitos), separados por comas. La Management API rechaza cualquier otra forma."
-            exit 1
-          fi
-          if ! printf '%s' "$SEND_SMS_HOOK_SECRET" | grep -qE '^v1,whsec_'; then
-            echo "::error::STAGING_SEND_SMS_HOOK_SECRET debe tener el formato v1,whsec_<base64> (el que muestra Supabase → Authentication → Hooks). Con otro formato la Management API rechaza el PATCH entero."
-            exit 1
-          fi
+          # El vecino entra con una sesión anónima que el navegador crea sola.
+          # Si esto queda apagado, la portada se ve pero el botón Apoyar
+          # responde 422 en cada toque y no hay producto. Se fija desde el
+          # pipeline y no a mano en el panel: lo que solo vive en la interfaz
+          # se pierde al recrear el proyecto y nadie se acuerda de por qué.
+          #
+          # El tope por hora y por IP va alto a propósito: cientos de personas
+          # del cantón salen por la misma IP del operador móvil, y con el valor
+          # de fábrica (30) una jornada de territorio deja a media brigada sin
+          # poder apoyar.
           if [ -z "$SITIO_URL" ]; then
-            echo "::error::Falta la Variable STAGING_SITIO_URL (la URL pública de staging, sin barra final)."
+            echo "::error::Falta la Variable STAGING_SITIO_URL (la URL pública, sin barra final)."
             exit 1
           fi
 
-          # El hook es lo que hace que el código salga por WhatsApp en vez de
-          # por SMS. Sin registrarlo, Supabase intenta usar un proveedor de SMS
-          # que no existe y ningún código llega nunca.
           cat > /tmp/auth.json <<EOF
           {
-            "external_phone_enabled": true,
-            "hook_send_sms_enabled": true,
-            "hook_send_sms_uri": "https://${PROJECT_REF}.supabase.co/functions/v1/enviar-otp-whatsapp",
-            "hook_send_sms_secrets": "$SEND_SMS_HOOK_SECRET",
-            "sms_test_otp": "$TEST_OTP",
-            "sms_test_otp_valid_until": "2099-01-01T00:00:00Z",
+            "external_anonymous_users_enabled": true,
+            "rate_limit_anonymous_users": 300,
             "site_url": "$SITIO_URL",
             "uri_allow_list": "$SITIO_URL,$SITIO_URL/**"
           }

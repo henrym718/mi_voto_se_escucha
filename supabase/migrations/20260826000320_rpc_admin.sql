@@ -2,9 +2,10 @@
 -- RPC del panel. Todas verifican el rol dentro de la función: el candidato
 -- tiene rol de solo lectura y no puede llegar a las de escritura ni por error.
 --
--- Un cambio de estado hace tres cosas de una vez y en la misma transacción:
--- mueve la obra, publica la entrada en la línea de tiempo, y encola el aviso
--- de WhatsApp para quienes la apoyaron. Si algo falla, no queda a medias.
+-- El embudo del equipo es corto a propósito: la cola muestra el borrador que
+-- la IA armó a partir del audio, con el audio al lado por si hay dudas y con
+-- los pedidos parecidos ya detectados. Revisar es leer, ajustar una palabra y
+-- tocar Publicar — o tocar Unificar y sumarle el apoyo a la causa que ya existe.
 -- ============================================================================
 
 -- ---------------------------------------------------------- admin_tablero --
@@ -40,7 +41,6 @@ begin
                'orden', e.orden,
                'es_compromiso', e.es_compromiso,
                'es_cierre_suave', e.es_cierre_suave,
-               'notifica', e.notifica,
                'total', (
                  select count(*) from public.obras o
                   where o.estado_id = e.id and o.aprobada and o.fusionada_en is null
@@ -54,10 +54,6 @@ begin
                             'codigo', o.codigo,
                             'titulo', o.titulo,
                             'apoyos', o.apoyos,
-                            'porcentaje_ciudadela',
-                              case when public.vecinos_en_ciudadela(o.ciudadela_id) > 0
-                                   then round((o.apoyos::numeric / public.vecinos_en_ciudadela(o.ciudadela_id)) * 100, 1)
-                                   else 0 end,
                             'ciudadela', cd.nombre,
                             'categoria', ct.nombre,
                             'categoria_icono', ct.icono,
@@ -89,12 +85,14 @@ $$;
 comment on function public.admin_tablero is 'Columnas del kanban = estados configurables de la ciudad.';
 
 -- -------------------------------------------- admin_obra_cambiar_estado --
+-- Mueve la obra y deja la entrada en su línea de tiempo, en una transacción.
+-- Ya no manda ningún WhatsApp: el vecino ve el avance en la misma página que
+-- compartió, y lo colectivo se cuenta en el canal del sector.
 create or replace function public.admin_obra_cambiar_estado(
   p_obra_id   uuid,
   p_estado_id uuid,
   p_texto     text default '',
-  p_media     jsonb default '[]'::jsonb,
-  p_notificar boolean default true
+  p_media     jsonb default '[]'::jsonb
 )
 returns jsonb
 language plpgsql
@@ -105,7 +103,6 @@ declare
   v_obra      public.obras;
   v_estado    public.estados;
   v_anterior  uuid;
-  v_encoladas integer := 0;
   v_pub_id    uuid;
 begin
   select * into v_obra from public.obras where id = p_obra_id;
@@ -132,51 +129,31 @@ begin
           coalesce(p_media, '[]'::jsonb), auth.uid())
   returning id into v_pub_id;
 
-  -- Aviso a quienes apoyaron. Es el momento en que el candidato cosecha el
-  -- crédito exactamente ante las personas que pidieron la obra.
-  if p_notificar and v_estado.notifica then
-    insert into public.notificaciones (
-      ciudad_id, vecino_id, telefono, plantilla, params, boton_path, origen_tipo, origen_id
-    )
-    select v_obra.ciudad_id,
-           ve.id,
-           ve.telefono,
-           'obra_avance',
-           jsonb_build_object(
-             'obra', v_obra.titulo,
-             'estado', v_estado.nombre,
-             'ciudadela', (select nombre from public.ciudadelas where id = v_obra.ciudadela_id),
-             'mensaje', left(coalesce(nullif(trim(p_texto), ''), v_estado.descripcion), 300)
-           ),
-           'o/' || v_obra.codigo,
-           'obra',
-           p_obra_id
-      from public.votos vo
-      join public.vecinos ve on ve.id = vo.vecino_id
-     where vo.obra_id = p_obra_id
-       and ve.consentimiento_notif
-       and ve.baja_en is null;
-
-    get diagnostics v_encoladas = row_count;
-  end if;
-
   perform public.anotar_bitacora(
     v_obra.ciudad_id, 'cambio_estado', 'obra', p_obra_id,
-    jsonb_build_object('de', v_anterior, 'a', p_estado_id, 'notificados', v_encoladas)
+    jsonb_build_object('de', v_anterior, 'a', p_estado_id)
   );
 
   return jsonb_build_object(
     'success', true,
     'publicacion_id', v_pub_id,
-    'notificados', v_encoladas,
     'estado', jsonb_build_object('id', v_estado.id, 'nombre', v_estado.nombre, 'color', v_estado.color)
   );
 end;
 $$;
 
-comment on function public.admin_obra_cambiar_estado is 'Mueve la obra, publica la entrada y encola los avisos, todo en una transacción.';
+comment on function public.admin_obra_cambiar_estado is 'Mueve la obra y publica la entrada de la línea de tiempo, en una transacción.';
 
 -- ------------------------------------------------- cola de aprobación --
+-- Todo lo que el equipo necesita para decidir en un vistazo: el borrador de la
+-- IA, lo que el vecino dijo de verdad, el audio, y las causas ya publicadas
+-- que se le parecen.
+--
+-- El parecido se calcula con trigram, la misma pieza que ya mueve el buscador.
+-- Compara el título propuesto contra los títulos aprobados del mismo sector,
+-- que es donde de verdad se repiten: diez vecinos de un barrio reportando que
+-- no hay agua deben terminar en UNA causa con diez apoyos, no en diez causas
+-- con uno.
 create or replace function public.admin_cola_aprobacion(p_ciudad_id uuid)
 returns jsonb
 language plpgsql
@@ -196,18 +173,17 @@ begin
              'id', o.id,
              'titulo', o.titulo,
              'descripcion', o.descripcion,
+             'texto_original', o.texto_original,
+             'transcripcion', o.transcripcion,
+             'audio_url', o.audio_url,
              'foto_url', o.foto_url,
+             'ia_estado', o.ia_estado,
              'creada_en', o.creada_en,
              'ciudadela', cd.nombre,
              'ciudadela_id', o.ciudadela_id,
              'categoria', ct.nombre,
              'categoria_id', o.categoria_id,
-             'similares', (
-               select count(*) from public.obras o2
-                where o2.ciudadela_id = o.ciudadela_id
-                  and o2.categoria_id = o.categoria_id
-                  and o2.aprobada and o2.fusionada_en is null and o2.id <> o.id
-             )
+             'parecidas', public.admin_obras_parecidas(o.id)
            ) order by o.creada_en asc
          ), '[]'::jsonb)
     into v_items
@@ -223,14 +199,85 @@ begin
 end;
 $$;
 
-create or replace function public.admin_obra_aprobar(p_obra_id uuid)
+-- ------------------------------------------------- admin_obras_parecidas --
+-- Las tres causas aprobadas del sector que más se parecen a un pedido. Si el
+-- texto todavía no pasó por la IA se compara contra lo que el vecino dijo.
+create or replace function public.admin_obras_parecidas(p_obra_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_obra  public.obras;
+  v_texto text;
+  v_items jsonb;
+begin
+  select * into v_obra from public.obras where id = p_obra_id;
+  if v_obra.id is null then
+    return '[]'::jsonb;
+  end if;
+
+  v_texto := public.fn_search_norm(
+    coalesce(nullif(trim(coalesce(v_obra.titulo, '')), ''),
+             v_obra.transcripcion,
+             v_obra.texto_original, '')
+  );
+  if length(v_texto) < 6 then
+    return '[]'::jsonb;
+  end if;
+
+  select coalesce(jsonb_agg(fila order by -parecido), '[]'::jsonb)
+    into v_items
+    from (
+      select jsonb_build_object(
+               'id', o.id,
+               'titulo', o.titulo,
+               'apoyos', o.apoyos,
+               'categoria', ct.nombre,
+               'parecido', round(greatest(
+                 word_similarity(v_texto, public.fn_search_norm(o.titulo)),
+                 word_similarity(public.fn_search_norm(o.titulo), v_texto)
+               )::numeric * 100)
+             ) as fila,
+             greatest(
+               word_similarity(v_texto, public.fn_search_norm(o.titulo)),
+               word_similarity(public.fn_search_norm(o.titulo), v_texto)
+             ) as parecido
+        from public.obras o
+        join public.categorias ct on ct.id = o.categoria_id
+       where o.ciudadela_id = v_obra.ciudadela_id
+         and o.id <> v_obra.id
+         and o.aprobada and o.fusionada_en is null and o.rechazada_en is null
+       order by parecido desc
+       limit 3
+    ) t
+   where parecido >= 0.3;
+
+  return v_items;
+end;
+$$;
+
+comment on function public.admin_obras_parecidas is 'Candidatas a unificar. Trigram sobre el título, dentro del mismo sector.';
+
+-- --------------------------------------------------------- aprobar / rechazar --
+-- Aprobar publica el texto que el equipo tiene delante: si ajustó una palabra
+-- del borrador de la IA, se guarda ese ajuste en el mismo acto. Un solo viaje.
+create or replace function public.admin_obra_aprobar(
+  p_obra_id      uuid,
+  p_titulo       text default null,
+  p_descripcion  text default null,
+  p_categoria_id uuid default null
+)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_obra public.obras;
+  v_obra   public.obras;
+  v_titulo text;
 begin
   select * into v_obra from public.obras where id = p_obra_id;
   if v_obra.id is null then
@@ -240,9 +287,28 @@ begin
     return jsonb_build_object('success', false, 'error_code', 'sin_permiso');
   end if;
 
+  v_titulo := nullif(trim(coalesce(p_titulo, v_obra.titulo, '')), '');
+  if v_titulo is null or length(v_titulo) < 8 then
+    return jsonb_build_object('success', false, 'error_code', 'titulo_requerido');
+  end if;
+
+  if p_categoria_id is not null and not exists (
+    select 1 from public.categorias ct
+     where ct.id = p_categoria_id and ct.ciudad_id = v_obra.ciudad_id and ct.activa
+  ) then
+    return jsonb_build_object('success', false, 'error_code', 'categoria_invalida');
+  end if;
+
   update public.obras
-     set aprobada = true, aprobada_en = now(), aprobada_por = auth.uid(),
-         rechazada_en = null, motivo_rechazo = null
+     set titulo       = left(v_titulo, 120),
+         descripcion  = left(coalesce(trim(p_descripcion), descripcion), 1000),
+         categoria_id = coalesce(p_categoria_id, categoria_id),
+         ia_estado    = case when ia_estado = 'pendiente' then 'listo' else ia_estado end,
+         aprobada     = true,
+         aprobada_en  = now(),
+         aprobada_por = auth.uid(),
+         rechazada_en = null,
+         motivo_rechazo = null
    where id = p_obra_id;
 
   perform public.anotar_bitacora(v_obra.ciudad_id, 'aprobar', 'obra', p_obra_id, '{}'::jsonb);
@@ -284,8 +350,10 @@ end;
 $$;
 
 -- --------------------------------------------------- admin_obras_fusionar --
--- Une pedidos duplicados en una sola obra sumando los apoyos. Los votos que
--- ya existían en el destino no se duplican gracias al índice único.
+-- Une pedidos duplicados en una sola causa sumando los apoyos. Los votos que
+-- ya existían en el destino no se duplican gracias al índice único. Sirve tanto
+-- para dos causas publicadas como para mandar un pedido de la cola a la causa
+-- que ya lo representa: el vecino que lo pidió termina apoyando esa.
 create or replace function public.admin_obras_fusionar(
   p_destino_id uuid,
   p_origen_ids uuid[]
@@ -383,13 +451,12 @@ begin
              es_inicial      = coalesce((v_item ->> 'es_inicial')::boolean, false),
              es_compromiso   = coalesce((v_item ->> 'es_compromiso')::boolean, false),
              es_cierre_suave = coalesce((v_item ->> 'es_cierre_suave')::boolean, false),
-             notifica        = coalesce((v_item ->> 'notifica')::boolean, true),
              activo          = coalesce((v_item ->> 'activo')::boolean, true)
        where id = v_id and ciudad_id = p_ciudad_id;
     else
       insert into public.estados (
         ciudad_id, nombre, slug, descripcion, color, orden,
-        es_inicial, es_compromiso, es_cierre_suave, notifica
+        es_inicial, es_compromiso, es_cierre_suave
       ) values (
         p_ciudad_id,
         v_item ->> 'nombre',
@@ -399,8 +466,7 @@ begin
         coalesce((v_item ->> 'orden')::integer, 0),
         coalesce((v_item ->> 'es_inicial')::boolean, false),
         coalesce((v_item ->> 'es_compromiso')::boolean, false),
-        coalesce((v_item ->> 'es_cierre_suave')::boolean, false),
-        coalesce((v_item ->> 'notifica')::boolean, true)
+        coalesce((v_item ->> 'es_cierre_suave')::boolean, false)
       )
       -- Un estado que se quitó antes sigue existiendo desactivado, porque hay
       -- obras e historial apuntando a él. Si el equipo vuelve a añadir uno con
@@ -413,7 +479,6 @@ begin
             es_inicial      = excluded.es_inicial,
             es_compromiso   = excluded.es_compromiso,
             es_cierre_suave = excluded.es_cierre_suave,
-            notifica        = excluded.notifica,
             activo          = true
       returning id into v_id;
     end if;
@@ -434,8 +499,12 @@ end;
 $$;
 
 -- --------------------------------------------------------- admin_ranking --
--- El tablero que se le vende al candidato: demanda por ciudadela con el peso
--- real de cada obra sobre los vecinos verificados de ese barrio.
+-- El tablero que se le vende al candidato: demanda por sector.
+--
+-- El porcentaje se calcula solo con los apoyos de gente que declaró vivir en
+-- ese sector. Es más estricto que el total y por eso es el que sirve para
+-- decidir: una causa puede sumar apoyos de todo el cantón, pero lo que dice
+-- cuánto le duele al barrio son los apoyos del barrio.
 create or replace function public.admin_ranking(
   p_ciudad_id    uuid,
   p_categoria_id uuid default null
@@ -478,9 +547,10 @@ begin
                             'id', o.id,
                             'titulo', o.titulo,
                             'apoyos', o.apoyos,
+                            'apoyos_locales', o.locales,
                             'porcentaje',
                               case when public.vecinos_en_ciudadela(cd.id) > 0
-                                   then round((o.apoyos::numeric / public.vecinos_en_ciudadela(cd.id)) * 100, 1)
+                                   then round((o.locales::numeric / public.vecinos_en_ciudadela(cd.id)) * 100, 1)
                                    else 0 end,
                             'categoria', ct.nombre,
                             'estado', e.nombre,
@@ -488,7 +558,11 @@ begin
                           ) order by o.apoyos desc
                         ), '[]'::jsonb)
                    from (
-                     select o2.* from public.obras o2
+                     select o2.*,
+                            (select count(*) from public.votos v
+                               join public.vecinos ve on ve.id = v.vecino_id
+                              where v.obra_id = o2.id and ve.ciudadela_id = cd.id) as locales
+                       from public.obras o2
                       where o2.ciudadela_id = cd.id and o2.aprobada and o2.fusionada_en is null
                         and (p_categoria_id is null or o2.categoria_id = p_categoria_id)
                       order by o2.apoyos desc limit 5
@@ -527,6 +601,7 @@ begin
     'categorias', v_categorias,
     'totales', jsonb_build_object(
       'vecinos', (select count(*) from public.vecinos where ciudad_id = p_ciudad_id),
+      'contactos', (select count(*) from public.vecinos where ciudad_id = p_ciudad_id and telefono is not null),
       'obras',   (select count(*) from public.obras where ciudad_id = p_ciudad_id and aprobada and fusionada_en is null),
       'apoyos',  (select coalesce(sum(apoyos), 0) from public.obras where ciudad_id = p_ciudad_id and aprobada and fusionada_en is null),
       'en_cola', (select count(*) from public.obras where ciudad_id = p_ciudad_id and not aprobada and rechazada_en is null)
@@ -535,4 +610,4 @@ begin
 end;
 $$;
 
-comment on function public.admin_ranking is 'Demanda por ciudadela y por categoría. El porcentaje corrige el sesgo de barrio grande.';
+comment on function public.admin_ranking is 'Demanda por sector y por categoría. El porcentaje usa solo apoyos locales.';

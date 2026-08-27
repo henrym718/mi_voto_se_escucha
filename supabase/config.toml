@@ -174,8 +174,10 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 enable_signup = true
-# Allow/disallow anonymous sign-ins to your project.
-enable_anonymous_sign_ins = false
+# El vecino navega con una sesión anónima: entra, mira y apoya sin registrarse.
+# Es lo que le da un auth.uid() estable —y con él "un apoyo por persona"— sin
+# pedirle un solo dato. Apagar esto deja la aplicación pública sin poder votar.
+enable_anonymous_sign_ins = true
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
@@ -199,8 +201,11 @@ password_requirements = ""
 email_sent = 2
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
-# Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
-anonymous_users = 30
+# Sesiones anónimas por hora y por IP. El límite de Supabase cuenta por IP, y en
+# El Triunfo cientos de personas salen por la misma IP del operador móvil: con
+# el valor de fábrica (30) una jornada de territorio deja a la mitad del barrio
+# sin poder apoyar. En la nube este mismo número lo fija el pipeline.
+anonymous_users = 300
 # Number of sessions that can be refreshed in a 5 minute interval per IP address.
 token_refresh = 150
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
@@ -254,28 +259,6 @@ otp_expiry = 3600
 # subject = "Your password has been changed"
 # content_path = "./supabase/templates/password_changed_notification.html"
 
-[auth.sms]
-# El vecino se registra con su teléfono: ese es todo el registro que hay.
-enable_signup = true
-enable_confirmations = false
-template = "Tu código de Mi Voto Se Escucha es {{ .Code }}"
-# Un código por minuto y por número. En la nube, además, la Edge Function
-# aplica su propio límite de 5 por hora y 10 por día por teléfono.
-max_frequency = "60s"
-
-# Números de prueba con código fijo. SOLO para desarrollo local: no gastan un
-# WhatsApp real y permiten probar el flujo entero sin credenciales de Kapso.
-# En staging y producción los fija el pipeline con la Management API.
-[auth.sms.test_otp]
-"+593990000001" = "123456"
-"+593990000002" = "123456"
-"+593990000003" = "123456"
-# Los 090… son los mismos de staging (secreto STAGING_TEST_OTP), repetidos aquí
-# para que el mismo número sirva en local y no haya que recordar dos juegos.
-"+593900000001" = "123456"
-"+593900000002" = "123456"
-"+593900000003" = "123456"
-
 # Configure logged in session timeouts.
 # [auth.sessions]
 # Force log out after the specified duration.
@@ -292,17 +275,6 @@ max_frequency = "60s"
 # [auth.hook.custom_access_token]
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
-
-# Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
-# Credenciales falsas a propósito. No usamos Twilio: el código se entrega por
-# WhatsApp con la función `enviar-otp-whatsapp`. Este bloque existe solo para
-# que `supabase start` levante el proveedor de teléfono en local y funcionen
-# los números de prueba de arriba. Cero gasto y cero cuenta de Twilio.
-[auth.sms.twilio]
-enabled = true
-account_sid = "local-sin-uso"
-message_service_sid = "local-sin-uso"
-auth_token = "local-sin-uso"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]
@@ -423,17 +395,3 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
-
-# =============================================================================
-# Edge Functions
-# =============================================================================
-
-[functions.enviar-otp-whatsapp]
-# La llama Supabase Auth SIN un token de usuario: se autentica con la firma del
-# webhook (SEND_SMS_HOOK_SECRET). Con verify_jwt activo, Supabase respondería
-# 401 antes de ejecutar la función y ningún código llegaría nunca.
-verify_jwt = false
-
-[functions.worker-notificaciones]
-# La llama el cron con el secreto compartido, no un usuario con sesión.
-verify_jwt = false

@@ -2,111 +2,121 @@
 
 import Link from 'next/link';
 
+import { MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
-import { FileText, MapPin } from 'lucide-react';
 
-import { Texto } from '@/components/typography';
 import { RUTAS } from '@/shared/config/rutas';
-import { cifra, porcentaje } from '@/shared/lib/utils';
+import { cifra, cn } from '@/shared/lib/utils';
 
 import type { ObraResumen } from '../types/obras.types';
 import { BotonApoyar } from './boton-apoyar';
-import { BotonCompartir } from './boton-compartir';
 
 interface Props {
   obra: ObraResumen;
-  haySesion: boolean;
-  onNecesitaSesion: () => void;
-  posicion?: number;
+  /** Puesto en la lista que se está mirando. Se pinta sobre la foto. */
+  posicion: number;
+  /** 0–100 respecto a la más apoyada de la lista. Alimenta la barra. */
+  peso: number;
   indice?: number;
 }
 
 /**
- * Borde negro fino para que cada tarjeta se recorte del fondo blanco, y un
- * anillo que crece al pasar por encima en vez de una sombra difusa.
+ * La tarjeta del feed, y la única que existe: la portada, el listado completo y
+ * el top de un sector muestran exactamente lo mismo. Tener dos tarjetas para la
+ * misma cosa era la forma segura de que una se quedara atrás.
+ *
+ * A la izquierda va la foto de la obra —o, si no hay, el puesto en grande—,
+ * porque una lista de puro texto no invita a nadie: la obra se tiene que ver.
  */
-export function TarjetaObra({ obra, haySesion, onNecesitaSesion, posicion, indice = 0 }: Props) {
+export function TarjetaObra({ obra, posicion, peso, indice = 0 }: Props) {
   return (
     <motion.article
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.32,
-        // Las tarjetas entran en cascada, no todas de golpe: da sensación de
-        // página viva sin marear. Se corta a los 8 para que el que llega abajo
-        // no espere medio segundo.
-        delay: Math.min(indice, 8) * 0.045,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      className="border-tinta ring-tinta/0 hover:ring-tinta/15 flex flex-col overflow-hidden rounded-2xl border bg-white ring-4 transition-all hover:-translate-y-0.5"
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-40px' }}
+      transition={{ duration: 0.35, delay: Math.min(indice, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
+      className="group border-tinta ring-tinta/0 hover:ring-tinta/15 relative flex gap-3.5 rounded-3xl border bg-white p-3.5 ring-4 transition-all hover:-translate-y-0.5 md:gap-4 md:p-4"
     >
-      <Link href={RUTAS.publico.obra(obra.codigo)} className="flex flex-col gap-2.5 p-4 pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {posicion !== undefined && posicion <= 3 && (
-            <span className="bg-tinta cifra rounded-full px-2 py-0.5 text-[0.7rem] font-bold text-white">
-              #{posicion} del barrio
-            </span>
-          )}
-          <span className="border-linea text-fg-strong rounded-full border px-2.5 py-0.5 text-[0.7rem] font-bold">
-            {obra.estado.nombre}
-          </span>
-          <span className="text-fg-muted flex items-center gap-1 text-[0.8125rem] font-semibold">
-            <MapPin className="size-3.5" />
-            {obra.ciudadela.nombre}
-          </span>
-        </div>
-
-        <h3 className="text-fg-strong text-[1.0625rem] leading-snug font-semibold tracking-[-0.015em]">
-          {obra.titulo}
-        </h3>
-
-        {obra.descripcion && (
-          <Texto tamano="sm" className="line-clamp-2">
-            {obra.descripcion}
-          </Texto>
-        )}
-
-        {/* Los pedidos que vienen del plan municipal dicen de dónde salieron:
-            es lo que separa esto de inventarse datos para llenar la pantalla. */}
-        {obra.origen === 'pdot' && obra.fuente && (
-          <div className="bg-crema-2 flex items-start gap-2 rounded-lg px-3 py-2">
-            <FileText className="text-fg-subtle mt-0.5 size-3.5 shrink-0" />
-            <Texto tamano="xs" tono="tenue" className="line-clamp-2">
-              {obra.fuente}
-            </Texto>
+      <Link
+        href={RUTAS.publico.obra(obra.codigo)}
+        className="relative block size-24 shrink-0 overflow-hidden rounded-2xl md:size-28"
+        tabIndex={-1}
+        aria-hidden
+      >
+        {obra.foto_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={obra.foto_url}
+            alt=""
+            loading="lazy"
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="bg-crema-2 flex size-full items-center justify-center">
+            <span className="text-fg-faint cifra text-4xl font-extrabold">{posicion}</span>
           </div>
         )}
+        <span
+          className={cn(
+            'cifra absolute top-1.5 left-1.5 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[0.75rem] font-extrabold shadow-sm',
+            posicion <= 3 ? 'bg-tinta text-white' : 'text-fg-default bg-white/95',
+          )}
+        >
+          {posicion}
+        </span>
       </Link>
 
-      <div className="border-linea flex items-center justify-between gap-3 border-t px-4 py-3">
-        <div className="flex flex-col">
-          <span className="text-fg-strong cifra text-[1.125rem] leading-none font-bold">
-            {cifra(obra.apoyos)}
-            <span className="text-fg-subtle ml-1 text-[0.75rem] font-medium">
-              {obra.apoyos === 1 ? 'vecino' : 'vecinos'}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <Link href={RUTAS.publico.obra(obra.codigo)} className="flex flex-col gap-1">
+          <span className="text-fg-strong line-clamp-2 text-[0.9375rem] leading-snug font-semibold tracking-[-0.015em] md:text-[1.0625rem]">
+            {obra.titulo}
+          </span>
+          {/* Semibold y en tinta media: en un teléfono al sol, el gris claro de
+              antes era ilegible y esta línea dice dónde queda la obra. */}
+          <span className="text-fg-muted flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[0.8125rem] font-semibold">
+            <span className="inline-flex items-center gap-0.5">
+              <MapPin className="size-3.5" />
+              {obra.ciudadela.nombre}
+            </span>
+            <span aria-hidden>·</span>
+            <span>{obra.categoria.nombre}</span>
+            <span className="border-linea text-fg-strong rounded-full border bg-white px-2 py-0.5 text-[0.68rem] font-bold">
+              {obra.estado.nombre}
             </span>
           </span>
-          {obra.porcentaje_ciudadela > 0 && (
-            <span className="text-fg-subtle text-[0.7rem]">
-              {porcentaje(obra.porcentaje_ciudadela)} de su ciudadela
-            </span>
-          )}
-        </div>
+        </Link>
 
-        <div className="flex items-center gap-2">
-          <BotonCompartir
-            variante="pastilla"
-            codigo={obra.codigo}
-            titulo={obra.titulo}
-            ciudadela={obra.ciudadela.nombre}
-            apoyos={obra.apoyos}
-          />
+        {/* La barra dice el peso relativo dentro de la lista. Con apoyo abierto
+            a todo el cantón, la proporción frente a la primera se lee mejor que
+            el número crudo: dice "cuánto pesa esto aquí", no "cuántos son". */}
+        <div className="mt-auto flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="cifra text-fg-strong text-[0.875rem] leading-none font-bold">
+              {cifra(obra.apoyos)}
+              <span className="text-fg-subtle ml-1 text-[0.7rem] font-medium">
+                {obra.apoyos === 1 ? 'vecino' : 'vecinos'}
+              </span>
+            </span>
+            <div className="bg-crema-2 h-1.5 w-full overflow-hidden rounded-full">
+              <motion.div
+                initial={{ width: 0 }}
+                whileInView={{ width: `${Math.max(peso, 4)}%` }}
+                viewport={{ once: true }}
+                transition={{
+                  duration: 0.7,
+                  delay: 0.2 + Math.min(indice, 6) * 0.05,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="bg-tinta h-full rounded-full"
+              />
+            </div>
+          </div>
+
           <BotonApoyar
             obraId={obra.id}
             apoyos={obra.apoyos}
             yaApoyada={obra.ya_apoyada}
-            haySesion={haySesion}
-            onNecesitaSesion={onNecesitaSesion}
+            tamano="sm"
             mostrarConteo={false}
           />
         </div>
@@ -118,19 +128,28 @@ export function TarjetaObra({ obra, haySesion, onNecesitaSesion, posicion, indic
 export function TarjetaObraEsqueleto({ indice = 0 }: { indice?: number }) {
   return (
     <div
-      className="border-tinta flex flex-col gap-3 rounded-2xl border bg-white p-4"
+      className="border-tinta flex gap-4 rounded-3xl border bg-white p-4"
       style={{ animationDelay: `${indice * 60}ms` }}
     >
-      <div className="flex gap-2">
-        <div className="bg-crema-2 h-5 w-24 animate-pulse rounded-full" />
-        <div className="bg-crema-2 h-5 w-20 animate-pulse rounded-full" />
-      </div>
-      <div className="bg-crema-2 h-5 w-3/4 animate-pulse rounded" />
-      <div className="bg-crema-2 h-4 w-full animate-pulse rounded" />
-      <div className="border-linea mt-1 flex items-center justify-between border-t pt-3">
-        <div className="bg-crema-2 h-6 w-20 animate-pulse rounded" />
-        <div className="bg-crema-2 h-11 w-28 animate-pulse rounded-full" />
+      <div className="bg-crema-2 size-24 animate-pulse rounded-2xl md:size-28" />
+      <div className="flex flex-1 flex-col gap-2 py-1">
+        <div className="bg-crema-2 h-5 w-3/4 animate-pulse rounded" />
+        <div className="bg-crema-2 h-4 w-1/2 animate-pulse rounded" />
+        <div className="mt-auto flex items-center justify-between gap-3">
+          <div className="bg-crema-2 h-4 w-24 animate-pulse rounded" />
+          <div className="bg-crema-2 h-9 w-24 animate-pulse rounded-full" />
+        </div>
       </div>
     </div>
   );
+}
+
+/**
+ * El peso de cada obra respecto a la más apoyada de la lista. Se calcula aquí,
+ * en el cliente y sobre lo que ya se descargó, en vez de pedírselo a la base:
+ * es una división y ahorra una subconsulta por fila en cada listado.
+ */
+export function pesosDeLista(obras: { apoyos: number }[]): number[] {
+  const techo = Math.max(...obras.map((o) => o.apoyos), 1);
+  return obras.map((o) => Math.round((o.apoyos / techo) * 100));
 }

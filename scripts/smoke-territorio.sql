@@ -102,10 +102,13 @@ begin
   perform pg_temp.chk('C4 — hay estados de cierre suave para no dejar pedidos mudos',
     v_n >= 2, v_n::text);
 
-  -- C5 -- el estado inicial no dispara notificación ------------------------
-  select notifica into v_txt from public.estados where ciudad_id = v_ciudad and es_inicial;
-  perform pg_temp.chk('C5 — el estado inicial no manda WhatsApp (nadie lo apoyó todavía)',
-    v_txt = 'false', coalesce(v_txt, 'null'));
+  -- C5 -- ningún sector arranca con canal de WhatsApp puesto ---------------
+  -- Los canales se crean a mano en WhatsApp y el equipo pega el enlace desde el
+  -- panel. Un enlace sembrado sería un enlace roto en la cara del vecino.
+  select count(*) into v_n from public.ciudadelas
+   where ciudad_id = v_ciudad and enlace_canal is not null;
+  perform pg_temp.chk('C5 — ningún sector nace con un enlace de canal inventado',
+    v_n = 0, v_n::text);
 
   -- C6 -- hay exactamente un estado de compromiso --------------------------
   select count(*) into v_n from public.estados where ciudad_id = v_ciudad and es_compromiso;

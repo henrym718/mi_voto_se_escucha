@@ -163,6 +163,7 @@ export type Database = {
           activa: boolean
           ciudad_id: string
           creada_en: string
+          enlace_canal: string | null
           fuente: string | null
           id: string
           nombre: string
@@ -176,6 +177,7 @@ export type Database = {
           activa?: boolean
           ciudad_id: string
           creada_en?: string
+          enlace_canal?: string | null
           fuente?: string | null
           id?: string
           nombre: string
@@ -189,6 +191,7 @@ export type Database = {
           activa?: boolean
           ciudad_id?: string
           creada_en?: string
+          enlace_canal?: string | null
           fuente?: string | null
           id?: string
           nombre?: string
@@ -252,7 +255,6 @@ export type Database = {
           es_inicial: boolean
           id: string
           nombre: string
-          notifica: boolean
           orden: number
           slug: string
         }
@@ -266,7 +268,6 @@ export type Database = {
           es_inicial?: boolean
           id?: string
           nombre: string
-          notifica?: boolean
           orden?: number
           slug: string
         }
@@ -280,7 +281,6 @@ export type Database = {
           es_inicial?: boolean
           id?: string
           nombre?: string
-          notifica?: boolean
           orden?: number
           slug?: string
         }
@@ -294,75 +294,6 @@ export type Database = {
           },
         ]
       }
-      notificaciones: {
-        Row: {
-          boton_path: string | null
-          ciudad_id: string
-          creada_en: string
-          enviada_en: string | null
-          estado: string
-          id: string
-          intentos: number
-          origen_id: string | null
-          origen_tipo: string | null
-          params: Json
-          plantilla: string
-          programada_para: string
-          telefono: string
-          ultimo_error: string | null
-          vecino_id: string | null
-        }
-        Insert: {
-          boton_path?: string | null
-          ciudad_id: string
-          creada_en?: string
-          enviada_en?: string | null
-          estado?: string
-          id?: string
-          intentos?: number
-          origen_id?: string | null
-          origen_tipo?: string | null
-          params?: Json
-          plantilla: string
-          programada_para?: string
-          telefono: string
-          ultimo_error?: string | null
-          vecino_id?: string | null
-        }
-        Update: {
-          boton_path?: string | null
-          ciudad_id?: string
-          creada_en?: string
-          enviada_en?: string | null
-          estado?: string
-          id?: string
-          intentos?: number
-          origen_id?: string | null
-          origen_tipo?: string | null
-          params?: Json
-          plantilla?: string
-          programada_para?: string
-          telefono?: string
-          ultimo_error?: string | null
-          vecino_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notificaciones_ciudad_id_fkey"
-            columns: ["ciudad_id"]
-            isOneToOne: false
-            referencedRelation: "ciudades"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "notificaciones_vecino_id_fkey"
-            columns: ["vecino_id"]
-            isOneToOne: false
-            referencedRelation: "vecinos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       obras: {
         Row: {
           actualizada_en: string
@@ -370,6 +301,7 @@ export type Database = {
           aprobada: boolean
           aprobada_en: string | null
           aprobada_por: string | null
+          audio_url: string | null
           categoria_id: string
           ciudad_id: string
           ciudadela_id: string
@@ -381,12 +313,14 @@ export type Database = {
           foto_url: string | null
           fuente: string | null
           fusionada_en: string | null
+          ia_estado: string
           id: string
           motivo_rechazo: string | null
           origen: string
           rechazada_en: string | null
-          titulo: string
-          top_avisado_en: string | null
+          texto_original: string | null
+          titulo: string | null
+          transcripcion: string | null
         }
         Insert: {
           actualizada_en?: string
@@ -394,6 +328,7 @@ export type Database = {
           aprobada?: boolean
           aprobada_en?: string | null
           aprobada_por?: string | null
+          audio_url?: string | null
           categoria_id: string
           ciudad_id: string
           ciudadela_id: string
@@ -405,12 +340,14 @@ export type Database = {
           foto_url?: string | null
           fuente?: string | null
           fusionada_en?: string | null
+          ia_estado?: string
           id?: string
           motivo_rechazo?: string | null
           origen?: string
           rechazada_en?: string | null
-          titulo: string
-          top_avisado_en?: string | null
+          texto_original?: string | null
+          titulo?: string | null
+          transcripcion?: string | null
         }
         Update: {
           actualizada_en?: string
@@ -418,6 +355,7 @@ export type Database = {
           aprobada?: boolean
           aprobada_en?: string | null
           aprobada_por?: string | null
+          audio_url?: string | null
           categoria_id?: string
           ciudad_id?: string
           ciudadela_id?: string
@@ -429,12 +367,14 @@ export type Database = {
           foto_url?: string | null
           fuente?: string | null
           fusionada_en?: string | null
+          ia_estado?: string
           id?: string
           motivo_rechazo?: string | null
           origen?: string
           rechazada_en?: string | null
-          titulo?: string
-          top_avisado_en?: string | null
+          texto_original?: string | null
+          titulo?: string | null
+          transcripcion?: string | null
         }
         Relationships: [
           {
@@ -488,23 +428,67 @@ export type Database = {
           },
         ]
       }
-      otp_send_log: {
+      perfiles: {
         Row: {
-          enviado_en: string
-          id: number
-          telefono: string
+          activo: boolean
+          bio: string
+          cargo: string
+          cedula: string | null
+          ciudad_id: string
+          correo: string | null
+          creado_en: string
+          es_candidato: boolean
+          foto_url: string | null
+          id: string
+          nombre: string
+          orden: number
+          redes: Json
+          slug: string
+          telefono: string | null
         }
         Insert: {
-          enviado_en?: string
-          id?: never
-          telefono: string
+          activo?: boolean
+          bio?: string
+          cargo?: string
+          cedula?: string | null
+          ciudad_id: string
+          correo?: string | null
+          creado_en?: string
+          es_candidato?: boolean
+          foto_url?: string | null
+          id?: string
+          nombre: string
+          orden?: number
+          redes?: Json
+          slug: string
+          telefono?: string | null
         }
         Update: {
-          enviado_en?: string
-          id?: never
-          telefono?: string
+          activo?: boolean
+          bio?: string
+          cargo?: string
+          cedula?: string | null
+          ciudad_id?: string
+          correo?: string | null
+          creado_en?: string
+          es_candidato?: boolean
+          foto_url?: string | null
+          id?: string
+          nombre?: string
+          orden?: number
+          redes?: Json
+          slug?: string
+          telefono?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "perfiles_ciudad_id_fkey"
+            columns: ["ciudad_id"]
+            isOneToOne: false
+            referencedRelation: "ciudades"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       portal: {
         Row: {
@@ -513,10 +497,14 @@ export type Database = {
           bio: string
           candidato_cargo: string
           candidato_nombre: string
+          cedula: string | null
           ciudad_id: string
           color_marca: string
           eslogan: string
+          foto_hero_url: string | null
           foto_url: string | null
+          hero_medio: string
+          hero_subtitulo: string
           logo_url: string | null
           partido: string
           redes: Json
@@ -530,10 +518,14 @@ export type Database = {
           bio?: string
           candidato_cargo?: string
           candidato_nombre?: string
+          cedula?: string | null
           ciudad_id: string
           color_marca?: string
           eslogan?: string
+          foto_hero_url?: string | null
           foto_url?: string | null
+          hero_medio?: string
+          hero_subtitulo?: string
           logo_url?: string | null
           partido?: string
           redes?: Json
@@ -547,10 +539,14 @@ export type Database = {
           bio?: string
           candidato_cargo?: string
           candidato_nombre?: string
+          cedula?: string | null
           ciudad_id?: string
           color_marca?: string
           eslogan?: string
+          foto_hero_url?: string | null
           foto_url?: string | null
+          hero_medio?: string
+          hero_subtitulo?: string
           logo_url?: string | null
           partido?: string
           redes?: Json
@@ -642,45 +638,33 @@ export type Database = {
       }
       vecinos: {
         Row: {
-          baja_en: string | null
           ciudad_id: string
           ciudadela_id: string | null
-          consentimiento_notif: boolean
           creado_en: string
-          edad_rango: string | null
-          genero: string | null
           id: string
-          nombre: string | null
           origen: string
-          telefono: string
+          quiere_canal: boolean
+          telefono: string | null
           ultimo_acceso_en: string
         }
         Insert: {
-          baja_en?: string | null
           ciudad_id: string
           ciudadela_id?: string | null
-          consentimiento_notif?: boolean
           creado_en?: string
-          edad_rango?: string | null
-          genero?: string | null
           id: string
-          nombre?: string | null
           origen?: string
-          telefono: string
+          quiere_canal?: boolean
+          telefono?: string | null
           ultimo_acceso_en?: string
         }
         Update: {
-          baja_en?: string | null
           ciudad_id?: string
           ciudadela_id?: string | null
-          consentimiento_notif?: boolean
           creado_en?: string
-          edad_rango?: string | null
-          genero?: string | null
           id?: string
-          nombre?: string | null
           origen?: string
-          telefono?: string
+          quiere_canal?: boolean
+          telefono?: string | null
           ultimo_acceso_en?: string
         }
         Relationships: [
@@ -751,34 +735,46 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      admin_alcance: {
-        Args: { p_ciudad_id: string; p_dias?: number }
+      admin_canales_guardar: {
+        Args: { p_canales: Json; p_ciudad_id: string }
         Returns: Json
       }
+      admin_canales_listar: { Args: { p_ciudad_id: string }; Returns: Json }
       admin_cola_aprobacion: { Args: { p_ciudad_id: string }; Returns: Json }
-      admin_difundir: {
-        Args: {
-          p_boton_path?: string
-          p_categoria_ids?: string[]
-          p_ciudad_id: string
-          p_ciudadela_ids?: string[]
-          p_mensaje: string
-          p_simular?: boolean
-        }
+      admin_contactos_sector: {
+        Args: { p_ciudadela_id: string; p_solo_canal?: boolean }
         Returns: Json
       }
       admin_estados_guardar: {
         Args: { p_ciudad_id: string; p_estados: Json }
         Returns: Json
       }
-      admin_obra_aprobar: { Args: { p_obra_id: string }; Returns: Json }
+      admin_obra_aprobar: {
+        Args: {
+          p_categoria_id?: string
+          p_descripcion?: string
+          p_obra_id: string
+          p_titulo?: string
+        }
+        Returns: Json
+      }
       admin_obra_cambiar_estado: {
         Args: {
           p_estado_id: string
           p_media?: Json
-          p_notificar?: boolean
           p_obra_id: string
           p_texto?: string
+        }
+        Returns: Json
+      }
+      admin_obra_crear: {
+        Args: {
+          p_categoria_id: string
+          p_ciudadela_id: string
+          p_descripcion?: string
+          p_foto_url?: string
+          p_fuente?: string
+          p_titulo: string
         }
         Returns: Json
       }
@@ -788,6 +784,16 @@ export type Database = {
       }
       admin_obras_fusionar: {
         Args: { p_destino_id: string; p_origen_ids: string[] }
+        Returns: Json
+      }
+      admin_obras_parecidas: { Args: { p_obra_id: string }; Returns: Json }
+      admin_perfiles_guardar: {
+        Args: { p_ciudad_id: string; p_perfiles: Json }
+        Returns: Json
+      }
+      admin_perfiles_listar: { Args: { p_ciudad_id: string }; Returns: Json }
+      admin_portal_guardar: {
+        Args: { p_ciudad_id: string; p_datos: Json }
         Returns: Json
       }
       admin_ranking: {
@@ -817,54 +823,32 @@ export type Database = {
       ciudadela_del_vecino: { Args: never; Returns: string }
       es_admin: { Args: { p_ciudad_id: string }; Returns: boolean }
       es_del_equipo: { Args: { p_ciudad_id: string }; Returns: boolean }
+      fn_search_norm: { Args: { p_texto: string }; Returns: string }
       generar_codigo_obra: { Args: never; Returns: string }
-      mensajes_ultima_semana: { Args: { p_vecino_id: string }; Returns: number }
       normalizar_telefono: { Args: { p_telefono: string }; Returns: string }
-      notif_marcar_enviada: { Args: { p_id: string }; Returns: undefined }
-      notif_marcar_fallida: {
-        Args: { p_error: string; p_id: string }
-        Returns: undefined
-      }
-      notif_reclamar_lote: {
-        Args: { p_limite?: number }
-        Returns: {
-          boton_path: string | null
-          ciudad_id: string
-          creada_en: string
-          enviada_en: string | null
-          estado: string
-          id: string
-          intentos: number
-          origen_id: string | null
-          origen_tipo: string | null
-          params: Json
-          plantilla: string
-          programada_para: string
-          telefono: string
-          ultimo_error: string | null
-          vecino_id: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "notificaciones"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      notificar_ingresos_top: { Args: { p_ciudad_id?: string }; Returns: Json }
       obra_apoyar: { Args: { p_obra_id: string }; Returns: Json }
       obra_crear: {
         Args: {
+          p_audio_url?: string
           p_categoria_id: string
           p_ciudadela_id: string
-          p_descripcion?: string
           p_foto_url?: string
-          p_titulo: string
+          p_texto?: string
         }
         Returns: Json
       }
       obra_detalle: {
         Args: { p_codigo?: string; p_obra_id?: string }
+        Returns: Json
+      }
+      obra_ia_resultado: {
+        Args: {
+          p_descripcion: string
+          p_fallo?: boolean
+          p_obra_id: string
+          p_titulo: string
+          p_transcripcion?: string
+        }
         Returns: Json
       }
       obra_quitar_apoyo: { Args: { p_obra_id: string }; Returns: Json }
@@ -881,36 +865,40 @@ export type Database = {
         }
         Returns: Json
       }
-      obras_similares: {
-        Args: { p_categoria_id: string; p_ciudadela_id: string }
+      portal_perfil: {
+        Args: { p_ciudad_slug: string; p_slug: string }
         Returns: Json
       }
-      otp_limite_ok: { Args: { p_telefono: string }; Returns: boolean }
+      portal_perfiles: { Args: { p_ciudad_slug: string }; Returns: Json }
       puede_editar: { Args: { p_ciudad_id: string }; Returns: boolean }
       ranking_ciudadela: {
         Args: { p_ciudadela_id: string; p_limite?: number }
         Returns: Json
       }
       rol_admin_en: { Args: { p_ciudad_id: string }; Returns: string }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       slugificar: { Args: { p_texto: string }; Returns: string }
-      tope_difusiones_semana: { Args: never; Returns: number }
-      vecino_asegurar: {
-        Args: {
-          p_ciudad_slug: string
-          p_ciudadela_id?: string
-          p_origen?: string
-        }
-        Returns: Json
+      unaccent: { Args: { "": string }; Returns: string }
+      vecino_asegurar_interno: {
+        Args: { p_ciudad_id: string; p_origen?: string }
+        Returns: undefined
       }
-      vecino_darse_de_baja: { Args: never; Returns: Json }
       vecino_elegir_ciudadela: {
         Args: { p_ciudadela_id: string }
         Returns: Json
       }
-      vecino_perfilar: {
-        Args: { p_edad_rango?: string; p_genero?: string; p_nombre?: string }
+      vecino_guardar_contacto: {
+        Args: {
+          p_ciudad_slug: string
+          p_ciudadela_id?: string
+          p_origen?: string
+          p_quiere_canal?: boolean
+          p_telefono: string
+        }
         Returns: Json
       }
+      vecino_yo: { Args: never; Returns: Json }
       vecinos_en_ciudadela: {
         Args: { p_ciudadela_id: string }
         Returns: number

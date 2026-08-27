@@ -8,10 +8,9 @@ import { motion } from 'motion/react';
 
 import { Texto, Titulo } from '@/components/typography';
 import { Button } from '@/components/ui/button';
-import { usePortal } from '@/modules/shared/portal.provider';
 import { RUTAS } from '@/shared/config/rutas';
 import { fechaLarga, haceCuanto } from '@/shared/lib/fechas';
-import { cifra, cn, porcentaje } from '@/shared/lib/utils';
+import { cifra, cn } from '@/shared/lib/utils';
 
 import { BotonApoyar } from '../components/boton-apoyar';
 import { BotonCompartir } from '../components/boton-compartir';
@@ -20,7 +19,6 @@ import type { ObraDetalle } from '../types/obras.types';
 
 export function ObraDetalleView({ codigo, inicial }: { codigo: string; inicial?: ObraDetalle }) {
   const router = useRouter();
-  const { haySesion, pedirVerificacion } = usePortal();
   const { data: obra = inicial, isLoading } = useObra({ codigo });
 
   if (isLoading && !obra) {
@@ -125,36 +123,13 @@ export function ObraDetalleView({ codigo, inicial }: { codigo: string; inicial?:
               {obra.apoyos === 1 ? 'vecino apoya' : 'vecinos apoyan'} este pedido
             </Texto>
           </div>
-          {obra.vecinos_ciudadela > 0 && (
-            <div className="flex flex-col items-end">
-              <span className="cifra text-fg-strong text-[1.5rem] leading-none font-bold">
-                {porcentaje(obra.porcentaje_ciudadela)}
-              </span>
-              <Texto tamano="xs" tono="tenue">
-                de {obra.ciudadela.nombre}
-              </Texto>
-            </div>
-          )}
         </div>
-
-        {obra.vecinos_ciudadela > 0 && (
-          <div className="bg-crema-2 h-2 overflow-hidden rounded-full">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(obra.porcentaje_ciudadela, 100)}%` }}
-              transition={{ duration: 0.9, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="bg-tinta h-full rounded-full"
-            />
-          </div>
-        )}
 
         <div className="flex gap-2">
           <BotonApoyar
             obraId={obra.id}
             apoyos={obra.apoyos}
             yaApoyada={obra.ya_apoyada}
-            haySesion={haySesion}
-            onNecesitaSesion={() => pedirVerificacion('apoyar')}
             tamano="xl"
             mostrarConteo={false}
             className="flex-1"
@@ -168,10 +143,25 @@ export function ObraDetalleView({ codigo, inicial }: { codigo: string; inicial?:
           />
         </div>
 
-        <div className="text-fg-subtle flex items-start gap-2 text-[0.8125rem]">
-          <MessageCircle className="mt-0.5 size-4 shrink-0" />
-          <span>Al apoyar te avisamos por WhatsApp cada vez que esta obra avance.</span>
-        </div>
+        {/* El seguimiento se ve aquí abajo, gratis. Lo que se ofrece por
+            WhatsApp es el canal del sector, que no cuesta un centavo por
+            persona y lo publica el equipo cuando hay algo real que contar. */}
+        {obra.ciudadela.enlace_canal ? (
+          <a
+            href={obra.ciudadela.enlace_canal}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-fg-strong hover:bg-crema-2 border-linea flex min-h-11 items-center justify-center gap-2 rounded-full border text-[0.875rem] font-semibold transition-colors"
+          >
+            <MessageCircle className="size-4" />
+            Únete al canal de {obra.ciudadela.nombre}
+          </a>
+        ) : (
+          <div className="text-fg-subtle flex items-start gap-2 text-[0.8125rem]">
+            <MessageCircle className="mt-0.5 size-4 shrink-0" />
+            <span>Los avances de esta obra aparecen aquí abajo, en el seguimiento.</span>
+          </div>
+        )}
       </section>
 
       {/* --------------------------------------------------- línea de tiempo -- */}

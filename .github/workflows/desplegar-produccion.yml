@@ -32,7 +32,6 @@ on:
     branches: [main]
     paths:
       - 'supabase/migrations/**'
-      - 'supabase/functions/**'
       - 'supabase/config.toml'
       - 'supabase/seed.sql'
       - 'scripts/**'
@@ -47,7 +46,7 @@ jobs:
   # Un solo job, como en Pronto: los smokes son pasos previos al despliegue, no
   # un job aparte. Si fallan, el job se detiene antes de tocar la base real.
   desplegar_produccion:
-    name: Push DB + Edge Functions + auth (producción)
+    name: Push DB + auth (producción)
     runs-on: ubuntu-latest
     environment: produccion
     env:
@@ -74,13 +73,6 @@ jobs:
         env:
           MVSE_DB_CONTAINER: supabase_db_mivotoseescucha
 
-      - name: Recorrido del vecino de punta a punta
-        run: |
-          echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" > .env.ci
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase status -o json | jq -r .ANON_KEY)" >> .env.ci
-          echo "NEXT_PUBLIC_CIUDAD_POR_DEFECTO=el-triunfo" >> .env.ci
-          node --env-file=.env.ci scripts/e2e-vecino.mjs
-
       - name: Apagar Supabase local
         run: supabase stop --no-backup
 
@@ -105,83 +97,31 @@ jobs:
           if [ -z "$DB_URL" ]; then echo "::error::Falta el secreto PROD_DB_URL"; exit 1; fi
           supabase db push --db-url "$DB_URL"
 
-      - name: Actualizar secretos del Vault
-        run: |
-          psql "$DB_URL" -c "delete from vault.secrets where name in ('url_base_funciones','secreto_worker');"
-          psql "$DB_URL" -c "select vault.create_secret('https://${PROJECT_REF}.supabase.co/functions/v1', 'url_base_funciones');"
-          psql "$DB_URL" -c "select vault.create_secret('${{ secrets.PROD_WORKER_SECRET }}', 'secreto_worker');"
-
-      - name: Inyectar secretos a las Edge Functions
+      - name: Configurar auth (sesiones anónimas y URL del sitio)
         env:
-          KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
-          KAPSO_PHONE_NUMBER_ID: ${{ secrets.PROD_KAPSO_PHONE_NUMBER_ID }}
-          SEND_SMS_HOOK_SECRET: ${{ secrets.PROD_SEND_SMS_HOOK_SECRET }}
-          WORKER_SECRET: ${{ secrets.PROD_WORKER_SECRET }}
-        run: |
-          {
-            echo "KAPSO_API_KEY=\"$KAPSO_API_KEY\""
-            echo "KAPSO_PHONE_NUMBER_ID=\"$KAPSO_PHONE_NUMBER_ID\""
-            echo "KAPSO_TEMPLATE_PREFIX=\"mvse_prod\""
-            echo "KAPSO_TEMPLATE_LANG=\"es\""
-            echo "KAPSO_OTP_TEMPLATE=\"mvse_prod_otp\""
-            echo "SEND_SMS_HOOK_SECRET=\"$SEND_SMS_HOOK_SECRET\""
-            echo "WORKER_SECRET=\"$WORKER_SECRET\""
-            echo "APP_BASE_URL=\"${{ vars.PROD_SITIO_URL }}\""
-          } > /tmp/funciones.env
-          supabase secrets set --env-file /tmp/funciones.env --project-ref "$PROJECT_REF"
-          rm -f /tmp/funciones.env
-
-      - name: Desplegar Edge Functions
-        run: supabase functions deploy --project-ref "$PROJECT_REF"
-
-      - name: Configurar auth
-        env:
-          SEND_SMS_HOOK_SECRET: ${{ secrets.PROD_SEND_SMS_HOOK_SECRET }}
-          # VARIABLE y no Secret (patrón Pronto): este dato hay que poder
-          # RELEERLO —un Secret no se puede— y no es la credencial de nadie
-          # real. En producción es OPCIONAL: vacía = cero números de prueba,
-          # que es el estado sano; cada par que se agregue es una puerta
-          # permanente en la base real, así que solo entra si de verdad hace
-          # falta (p. ej. la revisión de una tienda de apps).
-          TEST_OTP: ${{ vars.PROD_TEST_OTP }}
           SITIO_URL: ${{ vars.PROD_SITIO_URL }}
         run: |
-          # Las mismas guardas que staging: este paso muere ANTES del PATCH y
-          # diciendo qué arreglar, no con un 400 crudo a mitad del despliegue.
-          if [ -n "$TEST_OTP" ] && ! printf '%s' "$TEST_OTP" | grep -qE '^5939[0-9]{8}=[0-9]{6}(,5939[0-9]{8}=[0-9]{6})*$'; then
-            echo "::error::PROD_TEST_OTP mal escrita: cada par es 5939XXXXXXXX=NNNNNN (12 dígitos SIN «+» ni espacios, código de 6 dígitos), separados por comas."
-            exit 1
-          fi
-          if [ -n "$TEST_OTP" ] && printf '%s' "$TEST_OTP" | grep -qE '=(123456|000000|111111|654321)(,|$)'; then
-            echo "::error::El código de PROD_TEST_OTP es adivinable (123456 y parecidos). Ese par vive en producción: elige uno propio."
-            exit 1
-          fi
-          if ! printf '%s' "$SEND_SMS_HOOK_SECRET" | grep -qE '^v1,whsec_'; then
-            echo "::error::PROD_SEND_SMS_HOOK_SECRET debe tener el formato v1,whsec_<base64> (el que muestra Supabase → Authentication → Hooks)."
-            exit 1
-          fi
+          # El vecino entra con una sesión anónima que el navegador crea sola.
+          # Si esto queda apagado, la portada se ve pero el botón Apoyar
+          # responde 422 en cada toque y no hay producto. Se fija desde el
+          # pipeline y no a mano en el panel: lo que solo vive en la interfaz
+          # se pierde al recrear el proyecto y nadie se acuerda de por qué.
+          #
+          # El tope por hora y por IP va alto a propósito: cientos de personas
+          # del cantón salen por la misma IP del operador móvil, y con el valor
+          # de fábrica (30) una jornada de territorio deja a media brigada sin
+          # poder apoyar.
           if [ -z "$SITIO_URL" ]; then
-            echo "::error::Falta la Variable PROD_SITIO_URL (la URL pública de producción, sin barra final)."
+            echo "::error::Falta la Variable PROD_SITIO_URL (la URL pública, sin barra final)."
             exit 1
-          fi
-
-          # sms_test_otp solo entra al JSON cuando hay números: mandarla vacía
-          # también vale (la limpia), pero así queda explícito el caso normal.
-          TEST_OTP_JSON=""
-          if [ -n "$TEST_OTP" ]; then
-            TEST_OTP_JSON=",
-            \"sms_test_otp\": \"$TEST_OTP\",
-            \"sms_test_otp_valid_until\": \"2099-01-01T00:00:00Z\""
           fi
 
           cat > /tmp/auth.json <<EOF
           {
-            "external_phone_enabled": true,
-            "hook_send_sms_enabled": true,
-            "hook_send_sms_uri": "https://${PROJECT_REF}.supabase.co/functions/v1/enviar-otp-whatsapp",
-            "hook_send_sms_secrets": "$SEND_SMS_HOOK_SECRET",
+            "external_anonymous_users_enabled": true,
+            "rate_limit_anonymous_users": 300,
             "site_url": "$SITIO_URL",
-            "uri_allow_list": "$SITIO_URL,$SITIO_URL/**"${TEST_OTP_JSON}
+            "uri_allow_list": "$SITIO_URL,$SITIO_URL/**"
           }
           EOF
           curl -sS -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
@@ -190,8 +130,6 @@ jobs:
             --data @/tmp/auth.json --fail-with-body
           rm -f /tmp/auth.json
 
-      # Mismo paso que en staging: el seed solo crea cuentas en local, así que
-      # la cuenta del equipo de la nube la provisiona el pipeline.
       - name: Crear la cuenta del equipo
         env:
           ADMIN_CORREO: ${{ secrets.PROD_ADMIN_CORREO }}

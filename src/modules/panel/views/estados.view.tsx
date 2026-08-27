@@ -22,7 +22,6 @@ interface EstadoEditable {
   es_inicial: boolean;
   es_compromiso: boolean;
   es_cierre_suave: boolean;
-  notifica: boolean;
 }
 
 const COLORES = ['#8b8993', '#4a90a4', '#1f7a4d', '#c98a12', '#7a6a9a', '#0d7d6c', '#a4443c'];
@@ -59,7 +58,6 @@ export function EstadosView() {
         es_inicial: e.es_inicial,
         es_compromiso: e.es_compromiso,
         es_cierre_suave: e.es_cierre_suave,
-        notifica: e.notifica,
       })),
     );
   }
@@ -203,12 +201,6 @@ export function EstadosView() {
                   ayuda="Donde caen los pedidos nuevos"
                 />
                 <Marca
-                  activa={estado.notifica}
-                  onCambiar={(v) => actualizar(i, { notifica: v })}
-                  etiqueta="Avisa por WhatsApp"
-                  ayuda="A quienes apoyaron la obra"
-                />
-                <Marca
                   activa={estado.es_compromiso}
                   onCambiar={(v) => actualizar(i, { es_compromiso: v })}
                   etiqueta="Es un compromiso"
@@ -240,7 +232,6 @@ export function EstadosView() {
                 es_inicial: prev.length === 0,
                 es_compromiso: false,
                 es_cierre_suave: false,
-                notifica: true,
               },
             ]);
           }}

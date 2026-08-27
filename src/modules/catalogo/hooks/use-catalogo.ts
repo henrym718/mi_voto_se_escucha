@@ -39,7 +39,6 @@ export interface Estado {
   es_inicial: boolean;
   es_compromiso: boolean;
   es_cierre_suave: boolean;
-  notifica: boolean;
 }
 
 const UNA_HORA = 60 * 60 * 1000;

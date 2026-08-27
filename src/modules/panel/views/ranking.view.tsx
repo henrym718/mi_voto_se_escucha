@@ -68,7 +68,8 @@ export function RankingView() {
         <div className="flex flex-col gap-1">
           <Titulo nivel="h1">Ranking por barrio</Titulo>
           <Texto tamano="sm">
-            Ordenado por vecinos verificados. El porcentaje corrige el sesgo del barrio grande.
+            Ordenado por vecinos del sector. El porcentaje usa solo apoyos locales, para que un
+            barrio grande no tape a uno chico.
           </Texto>
         </div>
         <Button variant="outline" onClick={exportarCsv}>

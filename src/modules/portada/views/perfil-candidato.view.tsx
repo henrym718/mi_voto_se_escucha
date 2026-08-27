@@ -29,11 +29,12 @@ const ICONO_RED: Record<string, typeof LinkIcon> = {
 };
 
 /**
- * Quién está detrás del portal. Es la página que contesta "¿y este quién es?"
- * antes de que alguien deje su número, así que va la cara, el cargo al que
- * aspira y lo que dice que va a hacer — nada de relleno.
+ * La ficha del candidato armada con lo que hay en `portal`. Es el respaldo de
+ * la página de perfiles mientras el equipo no haya cargado ninguna ficha: un
+ * portal recién vendido no puede enseñar una pantalla vacía en la página que
+ * contesta "¿y este quién es?" antes de que alguien deje su número.
  */
-export function EquipoView() {
+export function FichaDelCandidato() {
   const { ciudad, portal } = usePortal();
 
   const redes = Object.entries(portal?.redes ?? {}).filter(([, url]) => Boolean(url));

@@ -49,8 +49,8 @@ SUITES=(
   smoke-voto
   smoke-pedidos
   smoke-panel
-  smoke-notificaciones
-  smoke-e2e
+  smoke-portal
+  smoke-canales
 )
 
 DB_URL="${MVSE_DB_URL:-}"
@@ -122,7 +122,7 @@ for s in "${SUITES[@]}"; do
     printf '  \033[33m● VACÍA\033[0m  %-24s sin comprobaciones\n' "$s"
     SUITES_VACIAS=$((SUITES_VACIAS + 1))
     [ "$DETALLE" -eq 1 ] && printf '%s\n' "$SALIDA"
-  elif [ "$CODIGO" -eq 0 ]; then
+  elif [ "$CODIGO" -eq 0 ] && [ "$FALLA" -eq 0 ]; then
     printf '  \033[32m● VERDE\033[0m  %-24s %s comprobaciones\n' "$s" "$OK"
     [ "$DETALLE" -eq 1 ] && printf '%s\n' "$SALIDA"
   else

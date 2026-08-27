@@ -25,7 +25,6 @@ export interface ObraResumen {
   descripcion: string;
   foto_url: string | null;
   apoyos: number;
-  porcentaje_ciudadela: number;
   origen: 'vecino' | 'pdot' | 'equipo';
   fuente: string | null;
   creada_en: string;
@@ -45,9 +44,9 @@ export interface EntradaLinea {
 }
 
 export interface ObraDetalle extends ObraResumen {
-  vecinos_ciudadela: number;
   aprobada: boolean;
   ciudad: { slug: string; nombre: string };
+  ciudadela: Referencia & { enlace_canal?: string | null };
   linea_tiempo: EntradaLinea[];
 }
 
@@ -61,36 +60,20 @@ export interface ObrasFiltros {
   desde?: number;
 }
 
-export interface ObraSimilar {
-  id: string;
-  codigo: string;
-  titulo: string;
-  descripcion: string;
-  foto_url: string | null;
-  apoyos: number;
-  porcentaje_ciudadela: number;
-  estado: { nombre: string; color: string };
-  ya_apoyada: boolean;
-}
-
 export interface RespuestaApoyo {
   success: boolean;
   error_code?: string;
   apoyos?: number;
-  posicion_ciudadela?: number;
-  necesita_perfil?: boolean;
 }
 
 /** Los códigos de error de las RPC, traducidos a algo que el vecino entienda. */
 export const MENSAJES_ERROR: Record<string, string> = {
-  sin_sesion: 'Confirma tu número para continuar.',
-  vecino_no_registrado: 'Confirma tu número para continuar.',
-  falta_ciudadela: 'Primero elige en qué ciudadela vives.',
-  fuera_de_tu_ciudadela: 'Solo puedes apoyar obras de tu propia ciudadela.',
-  otra_ciudad: 'Esta obra es de otra ciudad.',
+  sin_sesion: 'Recarga la página e intenta otra vez.',
+  vecino_no_registrado: 'Recarga la página e intenta otra vez.',
   obra_no_disponible: 'Esta obra ya no está disponible.',
   obra_no_encontrada: 'No encontramos esa obra.',
-  titulo_muy_corto: 'El título necesita al menos 8 letras.',
+  sin_contenido: 'Cuéntanos qué hace falta: grábalo o escríbelo.',
+  ciudadela_invalida: 'Elige tu sector de la lista.',
   categoria_invalida: 'Elige una categoría de la lista.',
   demasiados_pedidos_hoy: 'Ya publicaste 3 pedidos hoy. Mañana puedes seguir.',
   ciudad_no_encontrada: 'No encontramos esta ciudad.',

@@ -2,6 +2,8 @@
 -- Almacenamiento de imágenes y video.
 --
 --   obras         fotos que sube el vecino con su pedido
+--   notas         notas de voz del vecino: lo que la IA transcribe y el equipo
+--                 escucha si duda de la transcripción
 --   publicaciones fotos y videos que sube el equipo con cada avance
 --   portal        banner, foto del candidato, logo y video de presentación
 --
@@ -12,6 +14,10 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values
   ('obras', 'obras', true, 8388608,
    array['image/jpeg', 'image/png', 'image/webp', 'image/heic']),
+  -- Privado: es la voz de una persona contando un problema de su casa. Solo el
+  -- equipo la escucha, con enlace firmado y de duración corta.
+  ('notas', 'notas', false, 10485760,
+   array['audio/webm', 'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/wav']),
   ('publicaciones', 'publicaciones', true, 52428800,
    array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'video/mp4', 'video/quicktime', 'video/webm']),
   ('portal', 'portal', true, 52428800,
@@ -30,7 +36,7 @@ create policy "el vecino sube la foto de su pedido"
   on storage.objects for insert
   to authenticated
   with check (
-    bucket_id = 'obras'
+    bucket_id in ('obras', 'notas')
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
@@ -38,8 +44,19 @@ create policy "el vecino puede borrar sus propias fotos"
   on storage.objects for delete
   to authenticated
   using (
-    bucket_id = 'obras'
+    bucket_id in ('obras', 'notas')
     and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- La nota de voz no es pública: es la voz de una persona contando lo que le
+-- pasa en su casa. Solo la oye alguien del equipo, con un enlace firmado que
+-- el panel pide en el momento. El navegador del vecino nunca la vuelve a pedir.
+create policy "el equipo escucha las notas de voz"
+  on storage.objects for select
+  to authenticated
+  using (
+    bucket_id = 'notas'
+    and exists (select 1 from public.admins a where a.id = auth.uid() and a.activo)
   );
 
 -- ------------------------------------------------- escritura del equipo --

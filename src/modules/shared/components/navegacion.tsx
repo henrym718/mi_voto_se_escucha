@@ -12,7 +12,7 @@ import { cn } from '@/shared/lib/utils';
 const ENLACES = [
   { href: RUTAS.publico.inicio, etiqueta: 'Inicio', Icono: Home },
   { href: RUTAS.publico.obras, etiqueta: 'Obras', Icono: ListOrdered },
-  { href: RUTAS.publico.equipo, etiqueta: 'Equipo', Icono: Users },
+  { href: RUTAS.publico.perfiles, etiqueta: 'Perfiles', Icono: Users },
 ] as const;
 
 /**
@@ -60,7 +60,7 @@ export function Navegacion() {
             className="bg-tinta hover:bg-tinta-2 ml-auto flex h-10 items-center gap-2 rounded-full px-5 text-sm font-semibold text-white transition-colors active:translate-y-px"
           >
             <Plus className="size-4" />
-            Publicar mi pedido
+            Publicar problema
           </Link>
         </nav>
       </header>
@@ -102,15 +102,6 @@ export function Navegacion() {
               </Link>
             );
           })}
-          <Link
-            href={RUTAS.publico.publicar}
-            className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-2"
-          >
-            <span className="bg-tinta flex size-8 items-center justify-center rounded-full text-white shadow-sm">
-              <Plus className="size-5" strokeWidth={2.6} />
-            </span>
-            <span className="text-fg-strong text-[0.6875rem] font-bold">Publicar</span>
-          </Link>
         </div>
       </nav>
     </>

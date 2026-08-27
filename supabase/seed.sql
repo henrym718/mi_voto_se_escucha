@@ -48,15 +48,34 @@ values ('el-triunfo', 'El Triunfo', 'Guayas', 41042, 'campana')
 returning id into v_ciudad;
 
 insert into public.portal (
-  ciudad_id, candidato_nombre, candidato_cargo, partido, eslogan, bio, color_marca
+  ciudad_id, candidato_nombre, candidato_cargo, partido, cedula,
+  eslogan, hero_subtitulo, hero_medio, foto_hero_url, bio, color_marca
 ) values (
   v_ciudad,
   'Nombre del candidato',
-  'Candidato a la Alcaldía',
+  'Candidato a la Alcaldía de El Triunfo',
   'Movimiento político',
+  '0900000000',
   'El Triunfo lo decidimos entre todos',
+  'Pide la obra que le hace falta a tu barrio y apoya las de tus vecinos. Las más apoyadas entran al plan de obras.',
+  'foto',
+  -- Silueta de relleno para que el hero se vea completo antes de que el equipo
+  -- suba el recorte real. Se reemplaza desde el panel, en Portada y perfiles.
+  '/ejemplo-recorte-candidato.svg',
   'Escribe aquí la presentación del candidato desde el panel de administración. Este texto y todas las imágenes se cargan sin tocar código.',
   '#0d7d6c'
+);
+
+-- Sin fichas cargadas, la página de perfiles cae en la ficha del candidato
+-- armada con lo de arriba. Aquí se siembra la del candidato para que el equipo
+-- vea la lista de ejemplo el primer día y sepa qué tiene que llenar.
+insert into public.perfiles (
+  ciudad_id, slug, nombre, cargo, cedula, bio, es_candidato, orden
+) values (
+  v_ciudad, 'candidato', 'Nombre del candidato', 'Candidato a la Alcaldía de El Triunfo',
+  '0900000000',
+  'Escribe aquí quién es, a qué se ha dedicado y por qué se presenta. Dos o tres párrafos alcanzan.',
+  true, 0
 );
 
 -- ------------------------------------------------------------ categorías --
@@ -82,19 +101,19 @@ select id into v_cat_agua      from public.categorias where ciudad_id = v_ciudad
 -- Plantilla de CAMPAÑA. No existe "No viable": ningún candidato publica eso
 -- en su propia página. Los dos cierres suaves cumplen la misma función de que
 -- nada quede en silencio, sin costo político.
-insert into public.estados (ciudad_id, nombre, slug, descripcion, color, orden, es_inicial, es_compromiso, es_cierre_suave, notifica) values
+insert into public.estados (ciudad_id, nombre, slug, descripcion, color, orden, es_inicial, es_compromiso, es_cierre_suave) values
   (v_ciudad, 'Recibida', 'recibida',
-   'Tu pedido ya está publicado y sumando apoyos.', '#8b8993', 1, true, false, false, false),
+   'Tu pedido ya está publicado y sumando apoyos.', '#8b8993', 1, true, false, false),
   (v_ciudad, 'En revisión', 'revision',
-   'El equipo está revisando el caso con los vecinos del sector.', '#4a90a4', 2, false, false, false, true),
+   'El equipo está revisando el caso con los vecinos del sector.', '#4a90a4', 2, false, false, false),
   (v_ciudad, 'Visitada', 'visitada',
-   'El candidato estuvo en el sitio y conversó con los vecinos.', '#1f7a4d', 3, false, false, false, true),
+   'El candidato estuvo en el sitio y conversó con los vecinos.', '#1f7a4d', 3, false, false, false),
   (v_ciudad, 'Comprometida', 'comprometida',
-   'Esta obra entra en el plan de gobierno.', '#c98a12', 4, false, true, false, true),
+   'Esta obra entra en el plan de gobierno.', '#c98a12', 4, false, true, false),
   (v_ciudad, 'En estudio técnico', 'estudio-tecnico',
-   'Requiere estudios previos antes de poder ejecutarse.', '#7a6a9a', 5, false, false, true, true),
+   'Requiere estudios previos antes de poder ejecutarse.', '#7a6a9a', 5, false, false, true),
   (v_ciudad, 'Proyectada a mediano plazo', 'mediano-plazo',
-   'Está contemplada, pero depende de obras previas o de presupuesto plurianual.', '#8a7f6a', 6, false, false, true, true);
+   'Está contemplada, pero depende de obras previas o de presupuesto plurianual.', '#8a7f6a', 6, false, false, true);
 
 select id into v_est_recibida     from public.estados where ciudad_id = v_ciudad and slug = 'recibida';
 select id into v_est_revision     from public.estados where ciudad_id = v_ciudad and slug = 'revision';
