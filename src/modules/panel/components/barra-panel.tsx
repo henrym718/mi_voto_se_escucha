@@ -11,6 +11,7 @@ import {
   Inbox,
   LayoutTemplate,
   LogOut,
+  MapPin,
   Menu,
   Send,
   Settings2,
@@ -49,6 +50,9 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
       { href: RUTAS.panel.contenido, etiqueta: 'Portada y perfiles', Icono: LayoutTemplate },
       { href: RUTAS.panel.canales, etiqueta: 'Canales de WhatsApp', Icono: Send, soloEditores: true },
       { href: RUTAS.panel.estados, etiqueta: 'Estados', Icono: Settings2, soloEditores: true },
+      // Sin soloEditores: el candidato no la puede guardar, pero mirar qué
+      // sectores tiene su cantón es justo lo que va a querer hacer.
+      { href: RUTAS.panel.catalogo, etiqueta: 'Sectores y categorías', Icono: MapPin },
     ],
   },
 ];

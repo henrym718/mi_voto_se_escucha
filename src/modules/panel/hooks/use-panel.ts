@@ -227,3 +227,75 @@ export function useCrearObraDelEquipo() {
     onError: () => toast.error('No pudimos publicar el pedido.'),
   });
 }
+
+/* ------------------------------------- catálogo del cantón: sectores y tipos -- */
+
+export function useCatalogoDelPanel(ciudadId: string) {
+  return useQuery({
+    queryKey: [...clavesPanel.todo, 'catalogo', ciudadId],
+    queryFn: () => servicio.traerCatalogo(ciudadId),
+    enabled: Boolean(ciudadId),
+  });
+}
+
+/**
+ * Los mensajes del catálogo se escriben aquí y no en el diccionario general
+ * porque solo tienen sentido delante de esta pantalla: quien los lee está
+ * mirando la lista que acaba de romper.
+ */
+function mensajeDeCatalogo(codigo?: string, detalle?: string): string {
+  switch (codigo) {
+    case 'nombre_muy_corto':
+      return 'Hay un nombre vacío o de menos de tres letras.';
+    case 'zona_invalida':
+      return `Elige una zona válida para ${detalle ?? 'ese sector'}.`;
+    case 'enlace_invalido':
+      return `El enlace de ${detalle ?? 'ese sector'} no es de WhatsApp. Copia el de «Invitar al canal».`;
+    case 'sector_repetido':
+      return `«${detalle ?? ''}» ya está en la lista. Dos sectores no pueden llamarse igual.`;
+    case 'categoria_repetida':
+      return `«${detalle ?? ''}» ya está en la lista.`;
+    case 'sin_sectores':
+      return 'Deja al menos un sector: el vecino tiene que poder elegir uno al publicar.';
+    case 'sin_categorias':
+      return 'Deja al menos una categoría, o no se podrá clasificar ningún pedido.';
+    default:
+      return mensajeDeError(codigo);
+  }
+}
+
+/** Tras guardar se invalida también `catalogo`: los selectores del vecino y los
+ *  filtros del tablero salen de ahí y guardan una hora en caché. */
+function invalidarCatalogo(queryClient: ReturnType<typeof useQueryClient>, ciudadId: string) {
+  queryClient.invalidateQueries({ queryKey: [...clavesPanel.todo, 'catalogo', ciudadId] });
+  queryClient.invalidateQueries({ queryKey: ['catalogo'] });
+  queryClient.invalidateQueries({ queryKey: clavesPanel.todo });
+}
+
+export function useGuardarCiudadelas(ciudadId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ciudadelas: servicio.SectorParaGuardar[]) =>
+      servicio.guardarCiudadelas(ciudadId, ciudadelas),
+    onSuccess: (r) => {
+      if (!r.success) return toast.error(mensajeDeCatalogo(r.error_code, r.detalle));
+      invalidarCatalogo(queryClient, ciudadId);
+      toast.success('Sectores guardados.');
+    },
+    onError: () => toast.error('No pudimos guardar los sectores.'),
+  });
+}
+
+export function useGuardarCategorias(ciudadId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (categorias: servicio.CategoriaParaGuardar[]) =>
+      servicio.guardarCategorias(ciudadId, categorias),
+    onSuccess: (r) => {
+      if (!r.success) return toast.error(mensajeDeCatalogo(r.error_code, r.detalle));
+      invalidarCatalogo(queryClient, ciudadId);
+      toast.success('Categorías guardadas.');
+    },
+    onError: () => toast.error('No pudimos guardar las categorías.'),
+  });
+}

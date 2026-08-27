@@ -740,6 +740,15 @@ export type Database = {
         Returns: Json
       }
       admin_canales_listar: { Args: { p_ciudad_id: string }; Returns: Json }
+      admin_catalogo_listar: { Args: { p_ciudad_id: string }; Returns: Json }
+      admin_categorias_guardar: {
+        Args: { p_categorias: Json; p_ciudad_id: string }
+        Returns: Json
+      }
+      admin_ciudadelas_guardar: {
+        Args: { p_ciudad_id: string; p_ciudadelas: Json }
+        Returns: Json
+      }
       admin_cola_aprobacion: { Args: { p_ciudad_id: string }; Returns: Json }
       admin_contactos_sector: {
         Args: { p_ciudadela_id: string; p_solo_canal?: boolean }
@@ -818,6 +827,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      cerrar_funciones_admin: { Args: never; Returns: undefined }
       ciudad_del_vecino: { Args: never; Returns: string }
       ciudad_portada: { Args: { p_ciudad_slug: string }; Returns: Json }
       ciudadela_del_vecino: { Args: never; Returns: string }

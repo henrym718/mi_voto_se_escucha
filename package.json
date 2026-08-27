@@ -14,6 +14,7 @@
     "supabase:reset": "supabase db reset",
     "supabase:types": "supabase gen types typescript --local > src/types/database.types.ts",
     "smokes": "bash ./scripts/run-smokes.sh",
+    "datos:prueba": "node scripts/datos-de-prueba.mjs",
     "verificar": "pnpm typecheck && pnpm lint && pnpm smokes"
   },
   "dependencies": {

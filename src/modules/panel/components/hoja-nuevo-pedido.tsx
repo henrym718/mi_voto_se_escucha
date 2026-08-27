@@ -8,10 +8,13 @@ import { Texto, Titulo } from '@/components/typography';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useCategorias, useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
+import { subirFotoDePedido } from '@/modules/obras/services/subida.service';
 import { cn } from '@/shared/lib/utils';
 
 import { useCrearObraDelEquipo } from '../hooks/use-panel';
 import { usePanel } from '../panel.provider';
+
+import { CampoArchivo } from './campo-archivo';
 
 /**
  * El equipo levanta un pedido por su cuenta.
@@ -35,6 +38,7 @@ export function HojaNuevoPedido({ abierta, onCerrar }: { abierta: boolean; onCer
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [fuente, setFuente] = useState('');
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
 
   const listo = Boolean(ciudadelaId && categoriaId) && titulo.trim().length >= 8;
@@ -45,6 +49,7 @@ export function HojaNuevoPedido({ abierta, onCerrar }: { abierta: boolean; onCer
     setTitulo('');
     setDescripcion('');
     setFuente('');
+    setFotoUrl(null);
     setBusqueda('');
   }
 
@@ -55,6 +60,7 @@ export function HojaNuevoPedido({ abierta, onCerrar }: { abierta: boolean; onCer
       categoriaId: categoriaId!,
       titulo: titulo.trim(),
       descripcion: descripcion.trim(),
+      fotoUrl,
       fuente: fuente.trim() || null,
     });
     if (!r.success) return;
@@ -146,6 +152,21 @@ export function HojaNuevoPedido({ abierta, onCerrar }: { abierta: boolean; onCer
               rows={3}
               placeholder="Qué pasa, desde cuándo y a quién afecta. Dos o tres frases."
               className="border-linea focus:border-tinta w-full resize-none rounded-xl border bg-white px-4 py-3 text-base outline-none transition-all focus:ring-3"
+            />
+          </section>
+
+          {/* La foto pesa más que el texto en una obra: es la diferencia entre
+              «hay un hueco» y ver el hueco. Va al bucket de obras, con las que
+              suben los vecinos, no al material de campaña. */}
+          <section className="flex flex-col gap-2">
+            <CampoArchivo
+              etiqueta="Foto (opcional)"
+              ayuda="La que tomó quien recorrió el sector."
+              valor={fotoUrl}
+              onCambio={setFotoUrl}
+              ciudadId={ciudad.id}
+              forma="ancha"
+              subir={subirFotoDePedido}
             />
           </section>
 

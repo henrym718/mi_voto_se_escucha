@@ -335,3 +335,75 @@ export async function crearObraDelEquipo(entrada: {
     obra?: { id: string; codigo: string; aprobada: boolean };
   };
 }
+
+/* ------------------------------------- catálogo del cantón: sectores y tipos -- */
+
+export interface SectorDelCatalogo {
+  id: string;
+  nombre: string;
+  slug: string;
+  zona: 'urbana' | 'rural' | 'funcional';
+  verificado: boolean;
+  fuente: string | null;
+  poblacion_estimada: number | null;
+  enlace_canal: string | null;
+  orden: number;
+  activa: boolean;
+  /** Cuánto cuelga del sector. Es lo que hace pensar dos veces antes de quitarlo. */
+  obras: number;
+  vecinos: number;
+}
+
+export interface CategoriaDelCatalogo {
+  id: string;
+  nombre: string;
+  slug: string;
+  icono: string;
+  color: string;
+  orden: number;
+  activa: boolean;
+  obras: number;
+}
+
+/** El catálogo completo, con lo desactivado incluido: el panel lo necesita para
+ *  poder revivirlo, mientras que el vecino solo ve lo activo. */
+export async function traerCatalogo(ciudadId: string) {
+  const { data, error } = await supabaseNavegador().rpc('admin_catalogo_listar', {
+    p_ciudad_id: ciudadId,
+  });
+  if (error) throw new Error(error.message);
+  const r = data as unknown as {
+    success: boolean;
+    error_code?: string;
+    ciudadelas?: SectorDelCatalogo[];
+    categorias?: CategoriaDelCatalogo[];
+  };
+  if (!r.success) throw new Error(r.error_code ?? 'error');
+  return { ciudadelas: r.ciudadelas ?? [], categorias: r.categorias ?? [] };
+}
+
+export type SectorParaGuardar = Omit<SectorDelCatalogo, 'id' | 'obras' | 'vecinos' | 'slug'> & {
+  id?: string;
+};
+
+export async function guardarCiudadelas(ciudadId: string, ciudadelas: SectorParaGuardar[]) {
+  const { data, error } = await supabaseNavegador().rpc('admin_ciudadelas_guardar', {
+    p_ciudad_id: ciudadId,
+    p_ciudadelas: ciudadelas as never,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as { success: boolean; error_code?: string; detalle?: string };
+}
+
+export type CategoriaParaGuardar = Omit<CategoriaDelCatalogo, 'id' | 'obras' | 'slug'> & {
+  id?: string;
+};
+
+export async function guardarCategorias(ciudadId: string, categorias: CategoriaParaGuardar[]) {
+  const { data, error } = await supabaseNavegador().rpc('admin_categorias_guardar', {
+    p_ciudad_id: ciudadId,
+    p_categorias: categorias as never,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as { success: boolean; error_code?: string; detalle?: string };
+}

@@ -206,6 +206,16 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SERVICE_ROLE_KEY }}
         run: node scripts/crear-cuenta-equipo.mjs
 
+      # AQUÍ NO VA scripts/datos-de-prueba.mjs, y es deliberado. Ese script
+      # existe solo para el pipeline de staging: siembra vecinos, apoyos y
+      # fotos inventados para poder VER la aplicación llena. En producción los
+      # vecinos son personas de verdad y los apoyos son el activo del producto;
+      # el ambiente arranca con lo que trae el seed —las ciudadelas del PDOT y
+      # sus 49 carencias documentadas, con cero apoyos— y se llena solo.
+      #
+      # El propio script se planta si encuentra vecinos ya cargados, pero la
+      # defensa que cuenta es esta: nadie lo llama desde aquí.
+
       - name: Revisar avisos de seguridad de Supabase
         # No detiene el despliegue, pero deja en el registro cualquier tabla sin
         # políticas o función con search_path suelto que se haya colado.

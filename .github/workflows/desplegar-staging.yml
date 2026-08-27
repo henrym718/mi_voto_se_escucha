@@ -202,3 +202,17 @@ jobs:
         env:
           MVSE_DB_URL: ${{ secrets.STAGING_DB_URL }}
         run: bash ./scripts/run-smokes.sh
+
+      # Va AL FINAL, después de los smokes, y no antes: las suites comprueban
+      # que el ambiente quedó igual a lo que dice el código (una de ellas, que
+      # ningún sector nazca con un enlace de canal inventado). Sembrando primero,
+      # esa comprobación mediría los datos de relleno en vez del despliegue.
+      #
+      # Esto NO existe en el pipeline de producción, y no es un olvido: ahí el
+      # ambiente arranca solo con el seed —las ciudadelas del PDOT y sus 49
+      # carencias documentadas— y los vecinos son personas de verdad.
+      - name: Sembrar datos de demostración (solo staging)
+        env:
+          SUPABASE_URL: https://${{ vars.STAGING_PROJECT_REF }}.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
+        run: node scripts/datos-de-prueba.mjs

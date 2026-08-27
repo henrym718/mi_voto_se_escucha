@@ -51,6 +51,7 @@ SUITES=(
   smoke-panel
   smoke-portal
   smoke-canales
+  smoke-catalogo
 )
 
 DB_URL="${MVSE_DB_URL:-}"

@@ -19,6 +19,7 @@ export const RUTAS = {
     ranking: '/panel/ranking',
     canales: '/panel/canales',
     estados: '/panel/estados',
+    catalogo: '/panel/catalogo',
     contenido: '/panel/contenido',
     entrar: '/panel/entrar',
   },

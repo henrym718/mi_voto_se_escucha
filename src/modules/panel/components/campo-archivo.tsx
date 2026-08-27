@@ -20,6 +20,12 @@ interface Props {
   tipo?: 'imagen' | 'video';
   /** Proporción de la vista previa. El recorte del hero es alto, el banner ancho. */
   forma?: 'cuadrada' | 'ancha' | 'alta';
+  /**
+   * Dónde va a parar el archivo. Por defecto al bucket del portal, que es de
+   * dónde salió este campo; la foto de un pedido va al de obras, con el resto
+   * de fotos de obras, y no mezclada con el material de campaña.
+   */
+  subir?: (archivo: File) => Promise<string>;
 }
 
 const FORMA = {
@@ -41,6 +47,7 @@ export function CampoArchivo({
   ciudadId,
   tipo = 'imagen',
   forma = 'cuadrada',
+  subir,
 }: Props) {
   const [subiendo, setSubiendo] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
@@ -52,7 +59,7 @@ export function CampoArchivo({
 
     setSubiendo(true);
     try {
-      onCambio(await subirArchivoDePortal(ciudadId, archivo));
+      onCambio(subir ? await subir(archivo) : await subirArchivoDePortal(ciudadId, archivo));
     } catch {
       toast.error('No pudimos subir el archivo. Revisa el peso y el formato.');
     } finally {
