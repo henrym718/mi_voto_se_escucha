@@ -43,9 +43,26 @@ export const contactoLocal = {
   marcar: () => escribirLocal(CLAVE_CONTACTO, '1'),
 };
 
+function borrarLocal(clave: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(clave);
+  } catch {
+    /* sin almacenamiento no hay nada que borrar */
+  }
+}
+
+/**
+ * El sector elegido queda guardado, pero es un id que puede quedar colgando: en
+ * staging la base se reconstruye en cada despliegue y todos los uuid cambian, y
+ * en producción el equipo puede desactivar un sector desde el panel. Por eso
+ * hay `olvidar`: quien lee este dato tiene que poder tirarlo cuando descubre
+ * que ya no corresponde a nada.
+ */
 export const sectorLocal = {
   leer: () => leerLocal(CLAVE_SECTOR),
   guardar: (id: string) => escribirLocal(CLAVE_SECTOR, id),
+  olvidar: () => borrarLocal(CLAVE_SECTOR),
 };
 
 const CLAVE_ORIGEN = 'mvse:origen';

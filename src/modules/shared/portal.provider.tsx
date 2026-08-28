@@ -1,6 +1,14 @@
 'use client';
 
-import { type ReactNode, createContext, useCallback, useContext, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
 import { HojaContacto } from '@/modules/identidad/components/hoja-contacto';
@@ -120,11 +128,43 @@ export function PortalProvider({
 
   const { data: sesion } = useSesionAnonima();
   const { data: vecino } = useVecino(Boolean(sesion));
-  const { data: ciudadelas = [] } = useCiudadelas(ciudad.id);
+  const { data: ciudadelas = [], isSuccess: catalogoListo } = useCiudadelas(ciudad.id);
+
+  /**
+   * Un sector guardado que ya no existe deja la portada vacía y mintiendo.
+   *
+   * El id vive en el navegador para siempre, pero del otro lado se mueve:
+   * staging reconstruye la base en cada despliegue y todos los uuid cambian, y
+   * en producción el equipo puede desactivar un sector desde el catálogo. Con
+   * un id colgando pasaba esto: el filtro no encontraba ninguna obra —portada
+   * vacía, "Todavía no hay causas registradas"— y arriba seguía diciendo "Todo
+   * el cantón", porque el nombre tampoco aparecía en el catálogo. Nadie podía
+   * deducir qué estaba mal, y recargar no arreglaba nada porque el id seguía
+   * guardado. `/obras` no se enteraba: ahí el sector viaja en la URL.
+   *
+   * Se comprueba contra el catálogo real, y se decide al pintar en vez de en un
+   * efecto: así el primer render que ve el catálogo ya sale corregido y no hay
+   * un fotograma con la portada vacía. Mientras el catálogo no ha llegado se
+   * confía en lo guardado, que es lo correcto en el caso normal.
+   */
+  const sectorFantasma =
+    catalogoListo && sector !== null && !ciudadelas.some((c) => c.id === sector);
+  const sectorVigente = sectorFantasma ? null : sector;
+
+  // El efecto solo toca el navegador —el sistema externo—, para que el id
+  // muerto no vuelva en la próxima visita. El estado de React ya se corrigió
+  // arriba, al derivarlo.
+  useEffect(() => {
+    if (sectorFantasma) sectorLocal.olvidar();
+  }, [sectorFantasma]);
 
   const elegirSector = useCallback((id: string | null) => {
     setSector(id);
+    // Volver a "todo el cantón" también se recuerda. Antes solo se guardaba al
+    // elegir un barrio, así que quien salía de uno se lo encontraba de vuelta
+    // en la siguiente visita.
     if (id) sectorLocal.guardar(id);
+    else sectorLocal.olvidar();
   }, []);
 
   const pedirContacto = useCallback((m: 'apoyar' | 'publicar' = 'apoyar', cb?: () => void) => {
@@ -138,13 +178,13 @@ export function PortalProvider({
       ciudad,
       portal,
       cifras,
-      sector,
+      sector: sectorVigente,
       elegirSector,
-      sectorSugerido: sector ?? vecino?.ciudadela_id ?? null,
+      sectorSugerido: sectorVigente ?? vecino?.ciudadela_id ?? null,
       tieneContacto: Boolean(vecino?.tiene_telefono),
       pedirContacto,
     }),
-    [ciudad, portal, cifras, sector, elegirSector, vecino, pedirContacto],
+    [ciudad, portal, cifras, sectorVigente, elegirSector, vecino, pedirContacto],
   );
 
   return (
@@ -159,7 +199,7 @@ export function PortalProvider({
         }}
         ciudadSlug={ciudad.slug}
         ciudadelas={ciudadelas}
-        sectorSugerido={sector ?? vecino?.ciudadela_id ?? null}
+        sectorSugerido={sectorVigente ?? vecino?.ciudadela_id ?? null}
         motivo={motivo}
         origen={origenRecordado}
       />
