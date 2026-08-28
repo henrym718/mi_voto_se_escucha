@@ -2,10 +2,10 @@
 
 import { type ReactNode, createContext, useCallback, useContext, useMemo, useState } from 'react';
 
+import { useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
 import { HojaContacto } from '@/modules/identidad/components/hoja-contacto';
 import { useSesionAnonima, useVecino } from '@/modules/identidad/hooks/use-identidad';
 import { sectorLocal } from '@/modules/identidad/services/identidad.service';
-import { useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
 
 export interface DatosCiudad {
   id: string;
@@ -27,12 +27,16 @@ export interface DatosPortal {
   hero_subtitulo: string;
   /** Si hay video, la portada ofrece verlo en un modal en vez de ocupar pantalla. */
   hero_medio: 'foto' | 'video';
+  /** Enciende la banda del candidato al abrir la portada. Nace apagada. */
+  hero_candidato: boolean;
   bio: string;
   foto_url: string | null;
   foto_hero_url: string | null;
   banner_url: string | null;
   video_url: string | null;
   video_portada_url: string | null;
+  /** YouTube. Se abre solo la primera visita. Vacío = no aparece nada. */
+  video_bienvenida_url: string | null;
   logo_url: string | null;
   color_marca: string;
   redes: Record<string, string>;

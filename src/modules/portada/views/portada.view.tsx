@@ -21,7 +21,9 @@ import { usePortal } from '@/modules/shared/portal.provider';
 import { RUTAS } from '@/shared/config/rutas';
 import { cifra } from '@/shared/lib/utils';
 
+import { HeroCandidato } from '../components/hero-candidato';
 import { SelectorSector } from '../components/selector-sector';
+import { VideoBienvenida } from '../components/video-bienvenida';
 
 /** Cuántas tarjetas antes de "Ver más". Diez llenan la pantalla sin cansar. */
 const EN_PORTADA = 10;
@@ -58,7 +60,25 @@ export function PortadaView() {
 
   return (
     <>
+      {/* Solo en la portada, no en el layout: a quien llega desde un enlace de
+          WhatsApp a una obra concreta no se le tapa la obra con un video. */}
+      <VideoBienvenida />
+
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-10 md:px-6 md:pt-10">
+        {/* --------------------------------------------- portada del candidato -- */}
+        {/* Apagada de fábrica. Se enciende desde el panel, en Portada y
+            perfiles, y ahí está escrito lo que cuesta encenderla. */}
+        {portal?.hero_candidato && (
+          <HeroCandidato
+            nombre={portal.candidato_nombre ?? ''}
+            cargo={portal.candidato_cargo ?? ''}
+            partido={portal.partido ?? ''}
+            eslogan={portal.eslogan ?? ''}
+            fotoUrl={portal.foto_url ?? null}
+            bannerUrl={portal.banner_url ?? null}
+          />
+        )}
+
         {/* ------------------------------------------------------- titular -- */}
         <header className="flex flex-col gap-3">
           <Titulo nivel="display" className="max-w-[16ch]">
@@ -85,10 +105,13 @@ export function PortadaView() {
                 Ver el mensaje del candidato
               </button>
             )}
+            {/* Sin la cédula. Se sigue guardando en el panel porque el equipo
+                la necesita para los trámites del CNE, pero publicarla en la
+                portada no le sirve a ningún vecino y es un dato personal
+                puesto donde lo lee cualquiera. */}
             {portal?.partido && (
               <Texto tamano="sm" tono="tenue">
                 {portal.partido}
-                {portal.cedula ? ` · C.I. ${portal.cedula}` : ''}
               </Texto>
             )}
           </div>

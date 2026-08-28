@@ -35,7 +35,11 @@ export async function traerTablero(
     p_categoria_id: filtros.categoriaId ?? undefined,
   });
   if (error) throw new Error(error.message);
-  const r = data as unknown as { success: boolean; error_code?: string; columnas?: ColumnaTablero[] };
+  const r = data as unknown as {
+    success: boolean;
+    error_code?: string;
+    columnas?: ColumnaTablero[];
+  };
   if (!r.success) throw new Error(r.error_code ?? 'error');
   return r.columnas ?? [];
 }
@@ -216,7 +220,12 @@ export async function guardarCanales(
     p_canales: canales as never,
   });
   if (error) throw new Error(error.message);
-  return data as unknown as { success: boolean; error_code?: string; detalle?: string; sectores?: number };
+  return data as unknown as {
+    success: boolean;
+    error_code?: string;
+    detalle?: string;
+    sectores?: number;
+  };
 }
 
 export interface ContactoDeSector {
@@ -232,7 +241,11 @@ export async function traerContactos(ciudadelaId: string, soloCanal = false) {
     p_solo_canal: soloCanal,
   });
   if (error) throw new Error(error.message);
-  const r = data as unknown as { success: boolean; error_code?: string; items?: ContactoDeSector[] };
+  const r = data as unknown as {
+    success: boolean;
+    error_code?: string;
+    items?: ContactoDeSector[];
+  };
   if (!r.success) throw new Error(r.error_code ?? 'error');
   return r.items ?? [];
 }
@@ -247,12 +260,16 @@ export interface DatosDelPortal {
   eslogan: string;
   hero_subtitulo: string;
   hero_medio: 'foto' | 'video';
+  /** Enciende la banda del candidato en la portada pública. Nace apagada. */
+  hero_candidato: boolean;
   bio: string;
   foto_url: string | null;
   foto_hero_url: string | null;
   banner_url: string | null;
   video_url: string | null;
   video_portada_url: string | null;
+  /** YouTube. Se abre solo la primera visita. Vacío = no aparece nada. */
+  video_bienvenida_url: string | null;
   logo_url: string | null;
   color_marca: string;
   redes: Record<string, string>;
@@ -289,6 +306,8 @@ export interface PerfilDelEquipo {
   telefono: string | null;
   correo: string | null;
   redes: Record<string, string>;
+  /** Enlace de YouTube. La base rechaza cualquier otro dominio. */
+  video_url: string | null;
   es_candidato: boolean;
 }
 
@@ -307,7 +326,7 @@ export async function guardarPerfiles(ciudadId: string, perfiles: PerfilDelEquip
     p_perfiles: perfiles as never,
   });
   if (error) throw new Error(error.message);
-  return data as unknown as { success: boolean; error_code?: string };
+  return data as unknown as { success: boolean; error_code?: string; detalle?: string };
 }
 
 /* --------------------------------------------- pedido levantado por el equipo -- */

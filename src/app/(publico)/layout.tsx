@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { BotonPublicar } from '@/modules/shared/components/boton-publicar';
+import { InstalarApp } from '@/modules/shared/components/instalar-app';
 import { Navegacion } from '@/modules/shared/components/navegacion';
 import { PortalProvider } from '@/modules/shared/portal.provider';
 import { ciudadActual } from '@/shared/config/ciudad';
@@ -37,6 +38,10 @@ export default async function LayoutPublico({ children }: { children: React.Reac
         {/* El padding inferior deja libre la barra de navegación en móvil. */}
         <main className="flex-1 pb-28 md:pb-12">{children}</main>
         <BotonPublicar />
+        {/* El aviso de instalar va en el layout y no en la portada: mucha gente
+            entra por un enlace compartido a una obra concreta y nunca pasa por
+            la home, que es justo la que más vale la pena que vuelva. */}
+        <InstalarApp />
       </div>
     </PortalProvider>
   );

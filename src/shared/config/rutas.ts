@@ -8,6 +8,7 @@ export const RUTAS = {
     obras: '/obras',
     obra: (codigo: string) => `/o/${codigo}`,
     publicar: '/publicar',
+    misPropuestas: '/mis-propuestas',
     perfiles: '/perfiles',
     perfil: (slug: string) => `/perfiles/${slug}`,
     ajustes: '/ajustes',

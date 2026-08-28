@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Loader2, Mic, Square } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { toast } from 'sonner';
 
 import { cn } from '@/shared/lib/utils';
@@ -29,6 +29,7 @@ interface Props {
  * falla más de lo que parece.
  */
 export function GrabadorVoz({ onGrabado, ocupado = false, disabled = false }: Props) {
+  const menosMovimiento = useReducedMotion();
   const [grabando, setGrabando] = useState(false);
   const [segundos, setSegundos] = useState(0);
 
@@ -112,35 +113,58 @@ export function GrabadorVoz({ onGrabado, ocupado = false, disabled = false }: Pr
   const resto = segundos % 60;
 
   return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        disabled={disabled || ocupado}
-        onClick={() => (grabando ? detener() : void empezar())}
-        aria-label={grabando ? 'Detener la grabación' : 'Grabar una nota de voz'}
+    // La tarjeta ENTERA es el botón, no solo el círculo del micrófono. Antes
+    // solo respondía el icono: quien tocaba el texto —que es la mitad de la
+    // tarjeta y donde el dedo cae de forma natural— no pasaba nada, y sin
+    // saber por qué se ponía a escribir, que es justo lo que esto evita.
+    <button
+      type="button"
+      disabled={disabled || ocupado}
+      onClick={() => (grabando ? detener() : void empezar())}
+      aria-label={grabando ? 'Detener la grabación' : 'Grabar una nota de voz'}
+      className={cn(
+        'border-linea hover:border-tinta flex w-full items-center gap-3 rounded-2xl border-2 border-dashed bg-white p-4 text-left transition-colors',
+        'disabled:pointer-events-none disabled:opacity-50',
+        grabando && 'border-peligro border-solid',
+      )}
+    >
+      <span
         className={cn(
-          'relative flex size-13 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-50',
-          grabando ? 'bg-peligro text-white' : 'bg-tinta text-white hover:bg-tinta-2',
+          'relative flex size-13 shrink-0 items-center justify-center rounded-full transition-all',
+          grabando ? 'bg-peligro text-white' : 'bg-tinta text-white',
         )}
       >
-        {grabando && (
+        {/* Grabando: el latido rojo, fuerte, que dice que está encendido.
+            En reposo: un halo lento y casi invisible, para que el ojo lo
+            encuentre sin que la pantalla parezca que pide algo a gritos. */}
+        {grabando ? (
           <motion.span
             aria-hidden
             className="bg-peligro absolute inset-0 rounded-full"
             animate={{ scale: [1, 1.35], opacity: [0.45, 0] }}
             transition={{ duration: 1.4, repeat: Infinity, ease: 'easeOut' }}
           />
+        ) : (
+          !ocupado &&
+          !menosMovimiento && (
+            <motion.span
+              aria-hidden
+              className="ring-tinta absolute inset-0 rounded-full ring-2"
+              animate={{ scale: [1, 1.5], opacity: [0.22, 0] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeOut', repeatDelay: 1.2 }}
+            />
+          )
         )}
         {ocupado ? (
           <Loader2 className="size-5 animate-spin" />
         ) : grabando ? (
           <Square className="relative size-5 fill-current" />
         ) : (
-          <Mic className="size-5" />
+          <Mic className="relative size-5" />
         )}
-      </button>
+      </span>
 
-      <div className="flex min-w-0 flex-col">
+      <span className="flex min-w-0 flex-col">
         <span className="text-fg-strong text-[0.875rem] font-semibold">
           {ocupado
             ? 'Guardando tu nota…'
@@ -150,10 +174,10 @@ export function GrabadorVoz({ onGrabado, ocupado = false, disabled = false }: Pr
         </span>
         <span className="text-fg-subtle text-[0.75rem]">
           {grabando
-            ? 'Toca el cuadrado cuando termines'
+            ? 'Toca otra vez cuando termines'
             : 'Como un audio de WhatsApp. El equipo lo escucha.'}
         </span>
-      </div>
-    </div>
+      </span>
+    </button>
   );
 }

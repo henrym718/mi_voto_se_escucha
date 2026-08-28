@@ -37,12 +37,23 @@ export function TarjetaObra({ obra, posicion, peso, indice = 0 }: Props) {
       transition={{ duration: 0.35, delay: Math.min(indice, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
       className="group border-tinta ring-tinta/0 hover:ring-tinta/15 relative flex gap-3.5 rounded-3xl border bg-white p-3.5 ring-4 transition-all hover:-translate-y-0.5 md:gap-4 md:p-4"
     >
+      {/* Un solo enlace estirado sobre la tarjeta entera, en vez de uno en la
+          foto y otro en el título. Antes, el contador y la barra —que es media
+          tarjeta— no eran enlace y quien tocaba ahí no abría nada. Al ir
+          posicionado, este enlace se pinta por encima de todo y captura el
+          clic caiga donde caiga; el botón de apoyar sube con z-10 para
+          seguir siendo él quien recibe el suyo. */}
       <Link
         href={RUTAS.publico.obra(obra.codigo)}
-        className="relative block size-24 shrink-0 overflow-hidden rounded-2xl md:size-28"
-        tabIndex={-1}
-        aria-hidden
-      >
+        aria-label={obra.titulo}
+        className="absolute inset-0 rounded-3xl focus-visible:outline-2 focus-visible:outline-offset-2"
+      />
+
+      {/* `relative` porque el número del puesto se posiciona encima, y
+          `pointer-events-none` porque eso mismo lo dejaría por delante del
+          enlace estirado: sin esto, la foto vuelve a ser la única parte de la
+          tarjeta que no abre nada. */}
+      <div className="pointer-events-none relative block size-24 shrink-0 overflow-hidden rounded-2xl md:size-28">
         {obra.foto_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -64,10 +75,10 @@ export function TarjetaObra({ obra, posicion, peso, indice = 0 }: Props) {
         >
           {posicion}
         </span>
-      </Link>
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <Link href={RUTAS.publico.obra(obra.codigo)} className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <span className="text-fg-strong line-clamp-2 text-[0.9375rem] leading-snug font-semibold tracking-[-0.015em] md:text-[1.0625rem]">
             {obra.titulo}
           </span>
@@ -84,7 +95,7 @@ export function TarjetaObra({ obra, posicion, peso, indice = 0 }: Props) {
               {obra.estado.nombre}
             </span>
           </span>
-        </Link>
+        </div>
 
         {/* La barra dice el peso relativo dentro de la lista. Con apoyo abierto
             a todo el cantón, la proporción frente a la primera se lee mejor que
@@ -112,13 +123,15 @@ export function TarjetaObra({ obra, posicion, peso, indice = 0 }: Props) {
             </div>
           </div>
 
-          <BotonApoyar
-            obraId={obra.id}
-            apoyos={obra.apoyos}
-            yaApoyada={obra.ya_apoyada}
-            tamano="sm"
-            mostrarConteo={false}
-          />
+          <div className="relative z-10">
+            <BotonApoyar
+              obraId={obra.id}
+              apoyos={obra.apoyos}
+              yaApoyada={obra.ya_apoyada}
+              tamano="sm"
+              mostrarConteo={false}
+            />
+          </div>
         </div>
       </div>
     </motion.article>

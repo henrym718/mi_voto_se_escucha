@@ -70,6 +70,10 @@ declare
   v_est_comprometida uuid; v_est_visitada uuid;
   v_cat uuid;
   v_r jsonb; v_n integer;
+  -- Puntos de partida, no cifras absolutas: la obra elegida puede traer ya
+  -- avances de antes (los datos de demostración dejan dieciséis), y una prueba
+  -- que cuente desde cero se pone roja por algo que no rompió nada.
+  v_previas integer; v_previas_media integer;
 begin
   select id into v_ciudad from public.ciudades where slug = 'el-triunfo';
   select id into v_arb2 from public.ciudadelas where ciudad_id = v_ciudad and slug = 'arbolito-2';
@@ -153,6 +157,9 @@ begin
 
   -- C: mover una obra de columna ------------------------------------------------
   perform pg_temp.act_as(v_editor);
+  select count(*) into v_previas from public.publicaciones where obra_id = v_obra;
+  select count(*) into v_previas_media from public.publicaciones
+   where obra_id = v_obra and jsonb_array_length(media) = 1;
   v_r := public.admin_obra_cambiar_estado(v_obra, v_est_visitada,
            'El candidato estuvo el sábado con los vecinos.',
            '[{"tipo":"foto","url":"https://ejemplo/1.jpg"}]'::jsonb);
@@ -163,11 +170,13 @@ begin
     v_r -> 'estado' ->> 'nombre' is not null, (v_r -> 'estado')::text);
 
   select count(*) into v_n from public.publicaciones where obra_id = v_obra;
-  perform pg_temp.chk('C3 — queda una entrada en la línea de tiempo pública', v_n = 1, v_n::text);
+  perform pg_temp.chk('C3 — queda una entrada nueva en la línea de tiempo pública',
+    v_n = v_previas + 1, v_n || ' vs ' || v_previas);
 
   select count(*) into v_n from public.publicaciones
    where obra_id = v_obra and jsonb_array_length(media) = 1;
-  perform pg_temp.chk('C4 — la foto adjunta viaja con la publicación', v_n = 1, v_n::text);
+  perform pg_temp.chk('C4 — la foto adjunta viaja con la publicación',
+    v_n = v_previas_media + 1, v_n || ' vs ' || v_previas_media);
 
   -- El avance se cuenta en la página de la obra, que es gratis, y no por un
   -- WhatsApp por persona, que a mil vecinos cuesta más que la propia campaña.
@@ -207,7 +216,8 @@ begin
   -- un estado que se sobreescribe.
   v_r := public.admin_obra_cambiar_estado(v_obra, v_est_comprometida, 'Entra al plan de obras.');
   select count(*) into v_n from public.publicaciones where obra_id = v_obra;
-  perform pg_temp.chk('C11 — cada movimiento suma una entrada al historial', v_n = 2, v_n::text);
+  perform pg_temp.chk('C11 — cada movimiento suma una entrada al historial',
+    v_n = v_previas + 2, v_n || ' vs ' || v_previas);
 
   -- D: la cola de aprobación ----------------------------------------------------
   -- Se mide el CRECIMIENTO de la cola, no su tamaño: la base puede traer

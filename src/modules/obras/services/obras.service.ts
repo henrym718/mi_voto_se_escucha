@@ -1,11 +1,6 @@
 import { supabaseNavegador } from '@/shared/lib/supabase/client';
 
-import type {
-  ObraDetalle,
-  ObraResumen,
-  ObrasFiltros,
-  RespuestaApoyo,
-} from '../types/obras.types';
+import type { ObraDetalle, ObraResumen, ObrasFiltros, RespuestaApoyo } from '../types/obras.types';
 
 /**
  * Ningún componente habla con Supabase: todo pasa por aquí, y de aquí solo se
@@ -48,7 +43,11 @@ export async function obtenerObra(params: { id?: string; codigo?: string }): Pro
   });
 
   if (error) throw new Error(error.message);
-  const respuesta = data as unknown as { success: boolean; error_code?: string; obra?: ObraDetalle };
+  const respuesta = data as unknown as {
+    success: boolean;
+    error_code?: string;
+    obra?: ObraDetalle;
+  };
   if (!respuesta.success || !respuesta.obra)
     throw new Error(respuesta.error_code ?? 'obra_no_encontrada');
   return respuesta.obra;
@@ -127,4 +126,37 @@ export async function rankingDeBarrio(ciudadelaId: string, limite = 5) {
     success: boolean;
     items: (ObraResumen & { posicion: number })[];
   };
+}
+
+/* ---------------------------------------------------- mis propuestas -- */
+
+export type SituacionPropuesta = 'en_revision' | 'publicada' | 'unificada' | 'descartada';
+
+export interface Propuesta {
+  id: string;
+  codigo: string;
+  titulo: string;
+  /** false mientras el equipo no la ha redactado: arriba va lo que él escribió. */
+  tiene_titulo: boolean;
+  descripcion: string;
+  foto_url: string | null;
+  creada_en: string;
+  apoyos: number;
+  ciudadela: string;
+  categoria: string;
+  situacion: SituacionPropuesta;
+  motivo_rechazo: string | null;
+  estado: { nombre: string; color: string; descripcion: string } | null;
+  destino: { codigo: string; titulo: string; apoyos: number } | null;
+}
+
+/**
+ * Lo que pedí yo. No lleva parámetros a propósito: la RPC saca al vecino de
+ * `auth.uid()`, así que nadie puede pedir las propuestas de otro cambiando un
+ * identificador en la petición.
+ */
+export async function traerMisPropuestas(): Promise<Propuesta[]> {
+  const { data, error } = await supabaseNavegador().rpc('mis_propuestas');
+  if (error) throw new Error(error.message);
+  return ((data as unknown as { items?: Propuesta[] })?.items ?? []) as Propuesta[];
 }

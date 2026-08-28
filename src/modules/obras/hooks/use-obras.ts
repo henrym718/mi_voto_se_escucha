@@ -128,3 +128,15 @@ export function useCrearObra() {
     onError: () => toast.error('No pudimos enviar tu pedido. Intenta otra vez.'),
   });
 }
+
+/**
+ * Mis propuestas. `staleTime` corto: el vecino entra justo a ver si ya se la
+ * aprobaron, y ahí un dato de hace diez minutos es lo mismo que ninguno.
+ */
+export function useMisPropuestas() {
+  return useQuery({
+    queryKey: [...clavesObras.todo, 'mias'],
+    queryFn: servicio.traerMisPropuestas,
+    staleTime: 30 * 1000,
+  });
+}

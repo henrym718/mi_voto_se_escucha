@@ -44,12 +44,19 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
   return (
     <PanelProvider
       ciudad={ciudad}
-      admin={{ id: admin.id, rol: admin.rol as 'admin' | 'editor' | 'candidato', nombre: admin.nombre }}
+      admin={{
+        id: admin.id,
+        rol: admin.rol as 'admin' | 'editor' | 'candidato',
+        nombre: admin.nombre,
+      }}
       puedeEditar={puedeEditar}
     >
       <div className="bg-crema flex min-h-dvh flex-col md:flex-row">
         <BarraPanel />
-        <main className="min-w-0 flex-1 overflow-x-hidden">
+        {/* @container: el tablero necesita saber cuánto mide ESTA zona —no la
+            ventana— para desbordarse a lo ancho sin contar la barra lateral.
+            Las demás pantallas siguen dentro del ancho máximo de lectura. */}
+        <main className="@container min-w-0 flex-1 overflow-x-hidden">
           <div className="mx-auto w-full max-w-6xl px-4 py-5 md:px-8 md:py-8">{children}</div>
         </main>
       </div>

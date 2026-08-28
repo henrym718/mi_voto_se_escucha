@@ -9,7 +9,8 @@ import * as servicio from '../services/panel.service';
 
 export const clavesPanel = {
   todo: ['panel'] as const,
-  tablero: (ciudad: string, filtros: unknown) => [...clavesPanel.todo, 'tablero', ciudad, filtros] as const,
+  tablero: (ciudad: string, filtros: unknown) =>
+    [...clavesPanel.todo, 'tablero', ciudad, filtros] as const,
   cola: (ciudad: string) => [...clavesPanel.todo, 'cola', ciudad] as const,
   ranking: (ciudad: string, categoria?: string | null) =>
     [...clavesPanel.todo, 'ranking', ciudad, categoria ?? null] as const,
@@ -173,7 +174,8 @@ export function usePortalDelPanel(ciudadSlug: string) {
 export function useGuardarPortal(ciudadId: string, ciudadSlug: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (datos: Partial<servicio.DatosDelPortal>) => servicio.guardarPortal(ciudadId, datos),
+    mutationFn: (datos: Partial<servicio.DatosDelPortal>) =>
+      servicio.guardarPortal(ciudadId, datos),
     onSuccess: (r) => {
       if (!r.success) return toast.error(mensajeDeError(r.error_code));
       queryClient.invalidateQueries({ queryKey: [...clavesPanel.todo, 'portal', ciudadSlug] });
@@ -203,7 +205,9 @@ export function useGuardarPerfiles(ciudadId: string) {
         toast.error(
           r.error_code === 'nombre_muy_corto'
             ? 'Cada perfil necesita un nombre.'
-            : mensajeDeError(r.error_code),
+            : r.error_code === 'video_no_es_youtube'
+              ? `El video de ${r.detalle ?? 'esa ficha'} tiene que ser un enlace de YouTube.`
+              : mensajeDeError(r.error_code),
         );
         return;
       }
