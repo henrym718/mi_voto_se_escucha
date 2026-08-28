@@ -1,39 +1,22 @@
+import { type ImagenLista, prepararImagen } from '@/shared/lib/imagen';
 import { supabaseNavegador } from '@/shared/lib/supabase/client';
 
-const LADO_MAXIMO = 1600;
-const CALIDAD = 0.82;
-
 /**
- * Reduce la foto antes de subirla. Una foto de un celular moderno pesa entre 4
- * y 12 MB; subirla entera desde datos móviles en El Triunfo tarda una eternidad
- * y muchos abandonan a medio camino. Reducida a 1600px pesa unos 300 KB y se ve
- * igual de bien en pantalla.
+ * Todo lo que sube al almacenamiento pasa por aquí.
+ *
+ * Las fotos van SIEMPRE por `prepararImagen`, que las encoge y las convierte a
+ * WebP: es la única puerta, y por eso no hay forma de que un formulario nuevo
+ * se olvide de comprimir. El video y el audio suben tal cual — recodificarlos
+ * en el navegador tardaría más que subirlos.
  */
-export async function comprimirImagen(archivo: File): Promise<Blob> {
-  if (!archivo.type.startsWith('image/')) return archivo;
 
-  const bitmap = await createImageBitmap(archivo);
-  const escala = Math.min(1, LADO_MAXIMO / Math.max(bitmap.width, bitmap.height));
-
-  if (escala === 1 && archivo.size < 600_000) return archivo;
-
-  const ancho = Math.round(bitmap.width * escala);
-  const alto = Math.round(bitmap.height * escala);
-
-  const lienzo = document.createElement('canvas');
-  lienzo.width = ancho;
-  lienzo.height = alto;
-
-  const ctx = lienzo.getContext('2d');
-  if (!ctx) return archivo;
-  ctx.drawImage(bitmap, 0, 0, ancho, alto);
-  bitmap.close();
-
-  const blob = await new Promise<Blob | null>((resolver) =>
-    lienzo.toBlob(resolver, 'image/jpeg', CALIDAD),
-  );
-
-  return blob ?? archivo;
+/** Lo que no es imagen sube intacto, pero con la misma forma que lo demás. */
+function sinTocar(archivo: File): ImagenLista {
+  return {
+    cuerpo: archivo,
+    tipo: archivo.type,
+    extension: archivo.name.split('.').pop()?.toLowerCase() || 'bin',
+  };
 }
 
 /** Sube la foto del pedido a la carpeta del propio vecino. */
@@ -43,11 +26,11 @@ export async function subirFotoDePedido(archivo: File): Promise<string> {
   const uid = sesion.user?.id;
   if (!uid) throw new Error('sin_sesion');
 
-  const comprimida = await comprimirImagen(archivo);
-  const nombre = `${uid}/${crypto.randomUUID()}.jpg`;
+  const imagen = await prepararImagen(archivo);
+  const nombre = `${uid}/${crypto.randomUUID()}.${imagen.extension}`;
 
-  const { error } = await supabase.storage.from('obras').upload(nombre, comprimida, {
-    contentType: 'image/jpeg',
+  const { error } = await supabase.storage.from('obras').upload(nombre, imagen.cuerpo, {
+    contentType: imagen.tipo,
     upsert: false,
   });
   if (error) throw new Error(error.message);
@@ -90,24 +73,25 @@ export async function subirNotaDeVoz(audio: Blob): Promise<string> {
 
 /**
  * Sube contenido del portal (fotos, recortes, logo, video) bajo la carpeta de
- * la ciudad. El recorte del candidato se sube tal cual cuando es PNG: pasarlo
- * por el compresor lo convierte a JPEG y le devuelve el fondo blanco que
- * alguien se tomó el trabajo de recortar.
+ * la ciudad.
+ *
+ * El recorte del candidato y el logo ya NO se salvan de la conversión: antes se
+ * subían tal cual porque el compresor los pasaba a JPEG y les devolvía el fondo
+ * blanco que alguien se tomó el trabajo de recortar. WebP conserva la
+ * transparencia, así que ahora también adelgazan — y son los archivos más
+ * pesados del portal, porque un PNG con recorte no comprime nada.
  */
 export async function subirArchivoDePortal(ciudadId: string, archivo: File): Promise<string> {
   const supabase = supabaseNavegador();
 
-  const esVideo = archivo.type.startsWith('video/');
-  const conservarTalCual = esVideo || archivo.type === 'image/png' || archivo.type === 'image/svg+xml';
+  const contenido = archivo.type.startsWith('video/')
+    ? sinTocar(archivo)
+    : await prepararImagen(archivo);
 
-  const cuerpo = conservarTalCual ? archivo : await comprimirImagen(archivo);
-  const extension = conservarTalCual
-    ? (archivo.name.split('.').pop()?.toLowerCase() ?? 'bin')
-    : 'jpg';
-  const nombre = `${ciudadId}/${crypto.randomUUID()}.${extension}`;
+  const nombre = `${ciudadId}/${crypto.randomUUID()}.${contenido.extension}`;
 
-  const { error } = await supabase.storage.from('portal').upload(nombre, cuerpo, {
-    contentType: conservarTalCual ? archivo.type : 'image/jpeg',
+  const { error } = await supabase.storage.from('portal').upload(nombre, contenido.cuerpo, {
+    contentType: contenido.tipo,
     upsert: false,
   });
   if (error) throw new Error(error.message);
@@ -116,19 +100,18 @@ export async function subirArchivoDePortal(ciudadId: string, archivo: File): Pro
 }
 
 /** Sube media de avance del equipo, bajo la carpeta de su ciudad. */
-export async function subirMediaDeAvance(ciudadId: string, archivo: File): Promise<{
-  tipo: 'foto' | 'video';
-  url: string;
-}> {
+export async function subirMediaDeAvance(
+  ciudadId: string,
+  archivo: File,
+): Promise<{ tipo: 'foto' | 'video'; url: string }> {
   const supabase = supabaseNavegador();
   const esVideo = archivo.type.startsWith('video/');
 
-  const cuerpo = esVideo ? archivo : await comprimirImagen(archivo);
-  const extension = esVideo ? (archivo.name.split('.').pop() ?? 'mp4') : 'jpg';
-  const nombre = `${ciudadId}/${crypto.randomUUID()}.${extension}`;
+  const contenido = esVideo ? sinTocar(archivo) : await prepararImagen(archivo);
+  const nombre = `${ciudadId}/${crypto.randomUUID()}.${contenido.extension}`;
 
-  const { error } = await supabase.storage.from('publicaciones').upload(nombre, cuerpo, {
-    contentType: esVideo ? archivo.type : 'image/jpeg',
+  const { error } = await supabase.storage.from('publicaciones').upload(nombre, contenido.cuerpo, {
+    contentType: contenido.tipo,
     upsert: false,
   });
   if (error) throw new Error(error.message);
