@@ -233,6 +233,52 @@ exception when others then
   perform pg_temp.chk('EXCEPCIÓN no controlada en la suite', false, sqlerrm);
 end $t$;
 
+-- ---------------------------------------------------------------------------
+-- J: la sesión que ya no existe.
+--
+-- Un token válido cuyo usuario fue borrado (base reseteada, limpieza de
+-- sesiones anónimas) trae un auth.uid() perfectamente formado que NO está en
+-- auth.users. Antes, el alta del vecino reventaba contra la clave foránea y
+-- PostgREST devolvía 409: el vecino veía "intenta otra vez" y reintentar no
+-- servía de nada. Tiene que ser un error de negocio, no un error de Postgres.
+-- ---------------------------------------------------------------------------
+do $t$
+declare
+  v_obra      uuid;
+  v_ciudadela uuid;
+  v_categoria uuid;
+  v_r         jsonb;
+begin
+  select o.id into v_obra from public.obras o where o.aprobada limit 1;
+  select cd.id into v_ciudadela from public.ciudadelas cd
+    join public.ciudades c on c.id = cd.ciudad_id where c.slug = 'el-triunfo' limit 1;
+  select ct.id into v_categoria from public.categorias ct
+    join public.ciudades c on c.id = ct.ciudad_id where c.slug = 'el-triunfo' limit 1;
+
+  -- Un uuid que nunca pasó por auth.users: es lo que queda en el navegador.
+  perform pg_temp.act_as('11111111-2222-3333-4444-555555555555'::uuid);
+
+  v_r := public.obra_apoyar(v_obra);
+  perform pg_temp.chk('J1 — apoyar con sesión muerta responde sin_sesion, no revienta',
+    not (v_r ->> 'success')::boolean and v_r ->> 'error_code' = 'sin_sesion', v_r::text);
+
+  v_r := public.obra_crear(v_ciudadela, v_categoria, 'pedido de prueba');
+  perform pg_temp.chk('J2 — publicar con sesión muerta responde sin_sesion',
+    not (v_r ->> 'success')::boolean and v_r ->> 'error_code' = 'sin_sesion', v_r::text);
+
+  v_r := public.vecino_guardar_contacto('el-triunfo', '0999123456');
+  perform pg_temp.chk('J3 — dejar el número con sesión muerta responde sin_sesion',
+    not (v_r ->> 'success')::boolean and v_r ->> 'error_code' = 'sin_sesion', v_r::text);
+
+  perform pg_temp.chk('J4 — y no quedó rastro de ese fantasma en el padrón',
+    not exists (select 1 from public.vecinos
+                 where id = '11111111-2222-3333-4444-555555555555'::uuid), '');
+
+exception when others then
+  -- Aquí caía el 23503 de vecinos_id_fkey, que es justo lo que ya no debe pasar.
+  perform pg_temp.chk('J — la sesión muerta lanzó una excepción', false, sqlerrm);
+end $t$;
+
 select case when pass then 'PASS' else 'FALLA' end as estado, test, detail
   from t_results order by n;
 
