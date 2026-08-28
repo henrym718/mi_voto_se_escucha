@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import Link from 'next/link';
 
+import confetti from 'canvas-confetti';
 import { Camera, Check, ImageIcon, Loader2, MessageCircle, Send, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -45,9 +46,10 @@ export function PublicarView() {
   const [audio, setAudio] = useState<{ blob: Blob; segundos: number } | null>(null);
   const [foto, setFoto] = useState<{ archivo: File; vista: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [publicado, setPublicado] = useState<{ codigo: string; enlaceCanal?: string | null } | null>(
-    null,
-  );
+  const [publicado, setPublicado] = useState<{
+    codigo: string;
+    enlaceCanal?: string | null;
+  } | null>(null);
 
   const { data: ciudadelas = [] } = useCiudadelas(ciudad.id);
   const { data: categorias = [] } = useCategorias(ciudad.id);
@@ -108,7 +110,7 @@ export function PublicarView() {
   }
 
   if (publicado) {
-    return <Confirmacion codigo={publicado.codigo} enlaceCanal={publicado.enlaceCanal} />;
+    return <Confirmacion enlaceCanal={publicado.enlaceCanal} />;
   }
 
   return (
@@ -126,16 +128,11 @@ export function PublicarView() {
       </Paso>
 
       <Paso numero={2} titulo="¿De qué se trata?" completo={Boolean(categoriaId)}>
-        <div className="flex flex-wrap gap-2">
-          {categorias.map((c) => (
-            <Pastilla
-              key={c.id}
-              activa={categoriaId === c.id}
-              onClick={() => setCategoriaId(c.id)}
-              texto={c.nombre}
-            />
-          ))}
-        </div>
+        <SelectorCategorias
+          categorias={categorias}
+          elegida={categoriaId}
+          onElegir={setCategoriaId}
+        />
       </Paso>
 
       <AnimatePresence>
@@ -172,12 +169,13 @@ export function PublicarView() {
                     </button>
                   </div>
                 ) : (
-                  <div className="border-linea rounded-2xl border-2 border-dashed bg-white p-4">
-                    <GrabadorVoz
-                      onGrabado={(blob, segundos) => setAudio({ blob, segundos })}
-                      disabled={enviando}
-                    />
-                  </div>
+                  // Sin envoltorio: el propio grabador es la tarjeta entera y
+                  // el borde punteado va en él, para que se pueda tocar en
+                  // cualquier punto y no solo sobre el micrófono.
+                  <GrabadorVoz
+                    onGrabado={(blob, segundos) => setAudio({ blob, segundos })}
+                    disabled={enviando}
+                  />
                 )}
 
                 <div className="flex flex-col gap-2">
@@ -190,7 +188,7 @@ export function PublicarView() {
                     rows={3}
                     maxLength={1000}
                     placeholder="Ej. La calle 4 lleva dos meses sin alumbrado y de noche no se ve nada."
-                    className="border-linea focus:border-tinta w-full resize-none rounded-2xl border-2 bg-white px-4 py-3 text-[0.9375rem] outline-none transition-colors"
+                    className="border-linea focus:border-tinta w-full resize-none rounded-2xl border-2 bg-white px-4 py-3 text-[0.9375rem] transition-colors outline-none"
                   />
                 </div>
 
@@ -278,7 +276,61 @@ export function PublicarView() {
 }
 
 /** Lo último que ve el vecino. Tres segundos de lectura y una salida clara. */
-function Confirmacion({ codigo, enlaceCanal }: { codigo: string; enlaceCanal?: string | null }) {
+/**
+ * Lanza confeti a manos llenas, en tres tandas desde los dos lados.
+ *
+ * Publicar es el momento más difícil del recorrido —hay que contar un problema
+ * propio a un desconocido— y el que menos se repite si no se siente bien. Una
+ * sola ráfaga se queda corta aquí; esto tiene que verse como una fiesta.
+ *
+ * Respeta a quien pidió menos animación, igual que el confeti de apoyar.
+ */
+function celebrar() {
+  if (typeof window === 'undefined') return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const colores = ['#111111', '#4a4a4a', '#8a8a90', '#d9d9d9', '#ffffff'];
+  const comun = { colors: colores, disableForReducedMotion: true, zIndex: 60 };
+
+  void confetti({
+    ...comun,
+    particleCount: 140,
+    spread: 90,
+    startVelocity: 42,
+    origin: { y: 0.6 },
+  });
+
+  window.setTimeout(() => {
+    void confetti({ ...comun, particleCount: 80, angle: 60, spread: 70, origin: { x: 0, y: 0.7 } });
+    void confetti({
+      ...comun,
+      particleCount: 80,
+      angle: 120,
+      spread: 70,
+      origin: { x: 1, y: 0.7 },
+    });
+  }, 180);
+
+  window.setTimeout(() => {
+    void confetti({
+      ...comun,
+      particleCount: 120,
+      spread: 120,
+      startVelocity: 30,
+      decay: 0.92,
+      scalar: 1.1,
+      origin: { y: 0.5 },
+    });
+  }, 420);
+}
+
+function Confirmacion({ enlaceCanal }: { enlaceCanal?: string | null }) {
+  // Una sola vez, al montar: si dependiera de un render, cada refresco de la
+  // consulta volvería a tirar confeti encima del vecino.
+  useEffect(() => {
+    celebrar();
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -291,9 +343,13 @@ function Confirmacion({ codigo, enlaceCanal }: { codigo: string; enlaceCanal?: s
 
       <div className="flex flex-col gap-2">
         <Titulo nivel="h1">¡Recibido!</Titulo>
+        {/* Sin adornos: el pedido NO está publicado todavía, y decir que sí lo
+            está es la clase de mentira pequeña que se paga cuando el vecino
+            busca su pedido en la lista y no lo encuentra. */}
         <Texto>
-          Tu reporte pasa a revisión del equipo técnico para sumarlo al plan de trabajo. Puedes
-          seguirlo aquí mismo cuando se publique.
+          Tu propuesta llegó y está <strong>en revisión</strong>. El equipo la lee, la redacta si
+          hace falta y la publica para que tus vecinos la apoyen. Puedes seguir en qué va desde «Mis
+          propuestas».
         </Texto>
       </div>
 
@@ -313,7 +369,7 @@ function Confirmacion({ codigo, enlaceCanal }: { codigo: string; enlaceCanal?: s
 
       <div className="flex w-full flex-col gap-2">
         <Button variant="outline" size="lg" asChild className="w-full">
-          <Link href={RUTAS.publico.obra(codigo)}>Ver mi pedido</Link>
+          <Link href={RUTAS.publico.misPropuestas}>Seguir mi propuesta</Link>
         </Button>
         <Button variant="ghost" size="lg" asChild className="w-full">
           <Link href={RUTAS.publico.inicio}>Volver al inicio</Link>
@@ -369,11 +425,63 @@ function Pastilla({
         'min-h-11 rounded-full border-2 px-4 text-[0.875rem] font-semibold transition-colors',
         activa
           ? 'border-tinta bg-tinta text-white'
-          : 'border-linea text-fg-default bg-white hover:bg-crema-2',
+          : 'border-linea text-fg-default hover:bg-crema-2 bg-white',
       )}
     >
       {texto}
     </button>
+  );
+}
+
+/**
+ * El mismo repliegue que el sector: elegida la categoría, las diez pastillas se
+ * van y queda la elegida con un «Cambiar» al lado.
+ *
+ * Es lo que hace que el formulario avance en el teléfono. Con los dos pasos
+ * abiertos a la vez, la caja de escribir —que es el paso que de verdad cuesta—
+ * nacía por debajo del borde de la pantalla y había que buscarla desplazando.
+ */
+function SelectorCategorias({
+  categorias,
+  elegida,
+  onElegir,
+}: {
+  categorias: { id: string; nombre: string }[];
+  elegida: string | null;
+  onElegir: (id: string) => void;
+}) {
+  const [cambiando, setCambiando] = useState(false);
+  const actual = categorias.find((c) => c.id === elegida);
+
+  if (actual && !cambiando) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Pastilla activa onClick={() => setCambiando(true)} texto={actual.nombre} />
+        <button
+          type="button"
+          onClick={() => setCambiando(true)}
+          className="text-fg-muted hover:text-fg-strong min-h-11 px-2 text-[0.875rem] font-semibold transition-colors"
+        >
+          Cambiar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {categorias.map((c) => (
+        <Pastilla
+          key={c.id}
+          activa={elegida === c.id}
+          onClick={() => {
+            onElegir(c.id);
+            setCambiando(false);
+          }}
+          texto={c.nombre}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -418,7 +526,7 @@ function SelectorSectores({
         value={busqueda.trim()}
         onChange={(e) => setBusqueda(e.target.value)}
         placeholder="Busca tu sector…"
-        className="border-linea focus:border-tinta h-12 w-full rounded-2xl border-2 bg-white px-4 text-[0.9375rem] outline-none transition-colors"
+        className="border-linea focus:border-tinta h-12 w-full rounded-2xl border-2 bg-white px-4 text-[0.9375rem] transition-colors outline-none"
       />
       <div className="flex flex-wrap gap-2">
         {filtradas.map((c) => (

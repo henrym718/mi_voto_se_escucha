@@ -11,12 +11,13 @@ import {
   Inbox,
   LayoutTemplate,
   LogOut,
+  type LucideIcon,
   MapPin,
   Menu,
+  QrCode,
   Send,
   Settings2,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -48,11 +49,17 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
     titulo: 'Campaña',
     enlaces: [
       { href: RUTAS.panel.contenido, etiqueta: 'Portada y perfiles', Icono: LayoutTemplate },
-      { href: RUTAS.panel.canales, etiqueta: 'Canales de WhatsApp', Icono: Send, soloEditores: true },
+      {
+        href: RUTAS.panel.canales,
+        etiqueta: 'Canales de WhatsApp',
+        Icono: Send,
+        soloEditores: true,
+      },
       { href: RUTAS.panel.estados, etiqueta: 'Estados', Icono: Settings2, soloEditores: true },
       // Sin soloEditores: el candidato no la puede guardar, pero mirar qué
       // sectores tiene su cantón es justo lo que va a querer hacer.
       { href: RUTAS.panel.catalogo, etiqueta: 'Sectores y categorías', Icono: MapPin },
+      { href: RUTAS.panel.difusion, etiqueta: 'QR para carteles', Icono: QrCode },
     ],
   },
 ];
@@ -100,7 +107,9 @@ export function BarraPanel() {
                   onClick={() => setAbierto(false)}
                   className={cn(
                     'relative flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-[0.875rem] font-medium transition-colors',
-                    activo ? 'text-teal-hondo' : 'text-fg-muted hover:text-fg-default hover:bg-crema-2',
+                    activo
+                      ? 'text-teal-hondo'
+                      : 'text-fg-muted hover:text-fg-default hover:bg-crema-2',
                   )}
                 >
                   {activo && (

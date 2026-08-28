@@ -181,6 +181,29 @@
   .sin-barra::-webkit-scrollbar {
     display: none;
   }
+  /* La del tablero SÍ se ve: es la única pista de que hay más columnas a los
+     lados. Fina y en gris neutro para que no compita con las tarjetas. */
+  .barra-tablero {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-linea) transparent;
+    overscroll-behavior-x: contain;
+  }
+  .barra-tablero::-webkit-scrollbar {
+    height: 10px;
+  }
+  .barra-tablero::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .barra-tablero::-webkit-scrollbar-thumb {
+    background: var(--color-linea);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  .barra-tablero:hover::-webkit-scrollbar-thumb {
+    background: var(--color-tinta-3);
+    background-clip: content-box;
+  }
   :focus-visible {
     @apply outline-ring outline-2 outline-offset-2;
   }

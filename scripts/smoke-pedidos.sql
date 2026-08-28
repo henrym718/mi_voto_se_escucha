@@ -47,6 +47,17 @@ begin
   return v_id;
 end; $$;
 
+-- Un usuario pelado, sin ficha de vecino: es lo que hace falta para colgarle
+-- después una fila en `admins` y poder aprobar, unificar y rechazar.
+create function pg_temp.crear_usuario() returns uuid
+language plpgsql as $$
+declare v_id uuid := gen_random_uuid();
+begin
+  insert into auth.users (instance_id, id, aud, role, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', v_id, 'authenticated', 'authenticated', now(), now());
+  return v_id;
+end; $$;
+
 do $t$
 declare
   v_ciudad uuid; v_arb2 uuid; v_arb3 uuid;
@@ -195,6 +206,94 @@ begin
     (v_r -> 'items' -> 0) ? 'apoyos', (v_r -> 'items' -> 0)::text);
   perform pg_temp.chk('G2 — y si quien mira ya la apoyó',
     (v_r -> 'items' -> 0) ? 'ya_apoyada', (v_r -> 'items' -> 0)::text);
+
+  -- H: lo que pasó con lo que yo pedí --------------------------------------------
+  -- La pantalla «Mis propuestas» es la única forma que tiene el vecino de saber
+  -- qué fue de su pedido: no sale en la lista pública hasta que lo aprueban, y
+  -- si lo unifican, su enlace lleva a una obra que ya no se muestra. Se vigila
+  -- que cada final se cuente, y sobre todo que nadie vea los de otro.
+  declare
+    v_admin   uuid;
+    v_mias    jsonb;
+    v_destino uuid;
+    v_una     jsonb;
+  begin
+    perform pg_temp.act_as(v_vecino);
+    v_mias := public.mis_propuestas() -> 'items';
+    perform pg_temp.chk('H1 — el vecino ve sus tres pedidos',
+      jsonb_array_length(v_mias) = 3, jsonb_array_length(v_mias)::text);
+
+    perform pg_temp.chk('H2 — todos arrancan en revisión',
+      not exists (select 1 from jsonb_array_elements(v_mias) e
+                   where e ->> 'situacion' <> 'en_revision'),
+      v_mias::text);
+
+    -- Sin título todavía: se le devuelve lo que él mismo escribió, que es lo
+    -- único que reconoce como suyo mientras el equipo lo redacta.
+    perform pg_temp.chk('H3 — sin título, se le enseña lo que contó',
+      exists (select 1 from jsonb_array_elements(v_mias) e
+               where not (e ->> 'tiene_titulo')::boolean
+                 and length(e ->> 'titulo') > 0),
+      v_mias::text);
+
+    perform pg_temp.act_as(v_otro);
+    perform pg_temp.chk('H4 — otro vecino NO ve los pedidos ajenos',
+      not exists (
+        select 1 from jsonb_array_elements(public.mis_propuestas() -> 'items') e
+         where (e ->> 'id')::uuid in (select id from public.obras where creador_id = v_vecino)
+      ), public.mis_propuestas() ->> 'items');
+
+    perform pg_temp.act_anon();
+    perform pg_temp.chk('H5 — sin sesión la lista sale vacía',
+      jsonb_array_length(public.mis_propuestas() -> 'items') = 0,
+      public.mis_propuestas() ->> 'items');
+
+    -- Los tres finales, cada uno sobre uno de sus pedidos.
+    v_admin := pg_temp.crear_usuario();
+    insert into public.admins (id, ciudad_id, rol, nombre)
+    values (v_admin, v_ciudad, 'editor', 'Editor de prueba');
+    perform pg_temp.act_as(v_admin);
+
+    -- Por id y no por creada_en: los tres se crearon en esta transacción, así
+    -- que `now()` les dio a los tres la MISMA marca de tiempo y el orden era
+    -- una moneda al aire. Costó un rojo entenderlo.
+    declare v_ids uuid[];
+    begin
+      select array_agg(id order by id) into v_ids
+        from public.obras where creador_id = v_vecino;
+
+      perform public.admin_obra_aprobar(v_ids[1], 'Reja rota en la calle principal');
+
+      select id into v_destino from public.obras
+       where ciudad_id = v_ciudad and aprobada and creador_id is null limit 1;
+      perform public.admin_obras_fusionar(v_destino, array[v_ids[2]]);
+
+      perform public.admin_obra_rechazar(v_ids[3], 'Eso le toca a la empresa eléctrica.');
+    end;
+
+    perform pg_temp.act_as(v_vecino);
+    v_mias := public.mis_propuestas() -> 'items';
+
+    select e into v_una from jsonb_array_elements(v_mias) e
+     where e ->> 'situacion' = 'publicada' limit 1;
+    perform pg_temp.chk('H6 — la aprobada se ve publicada, con su estado',
+      v_una is not null and v_una -> 'estado' ->> 'nombre' is not null, v_una::text);
+
+    select e into v_una from jsonb_array_elements(v_mias) e
+     where e ->> 'situacion' = 'unificada' limit 1;
+    perform pg_temp.chk('H7 — la unificada dice a dónde fue a parar',
+      v_una is not null and v_una -> 'destino' ->> 'codigo' is not null, v_una::text);
+
+    select e into v_una from jsonb_array_elements(v_mias) e
+     where e ->> 'situacion' = 'descartada' limit 1;
+    perform pg_temp.chk('H8 — la descartada trae el motivo, no un silencio',
+      v_una is not null
+      and v_una ->> 'motivo_rechazo' = 'Eso le toca a la empresa eléctrica.',
+      v_una::text);
+
+    perform pg_temp.chk('H9 — y sigue viendo sus tres, ninguna se perdió',
+      jsonb_array_length(v_mias) = 3, jsonb_array_length(v_mias)::text);
+  end;
 
 exception when others then
   perform pg_temp.chk('EXCEPCIÓN no controlada en la suite', false, sqlerrm);

@@ -29,12 +29,14 @@ const PORTAL_VACIO: DatosDelPortal = {
   eslogan: '',
   hero_subtitulo: '',
   hero_medio: 'foto',
+  hero_candidato: false,
   bio: '',
   foto_url: null,
   foto_hero_url: null,
   banner_url: null,
   video_url: null,
   video_portada_url: null,
+  video_bienvenida_url: null,
   logo_url: null,
   color_marca: '#0d7d6c',
   redes: {},
@@ -182,7 +184,10 @@ function FormularioPortada({
           </Campo>
         </Bloque>
 
-        <Bloque titulo="El mensaje" ayuda="Lo primero que se lee. Corto y en primera persona plural.">
+        <Bloque
+          titulo="El mensaje"
+          ayuda="Lo primero que se lee. Corto y en primera persona plural."
+        >
           <Campo etiqueta="Titular">
             <AreaTexto
               valor={datos.eslogan}
@@ -201,6 +206,75 @@ function FormularioPortada({
               placeholder="Pide la obra que le hace falta a tu barrio y apoya las de tus vecinos. Las más apoyadas entran al plan de obras."
             />
           </Campo>
+        </Bloque>
+
+        <Bloque
+          titulo="Video de bienvenida"
+          ayuda="Se abre solo la primera vez que alguien entra, y una sola vez. Sirve para explicar en medio minuto para qué es esto. Si lo dejas vacío, no aparece nada."
+        >
+          <Campo etiqueta="Enlace de YouTube">
+            <Entrada
+              valor={datos.video_bienvenida_url ?? ''}
+              onCambio={(v) => cambiar({ video_bienvenida_url: v })}
+              placeholder="https://www.youtube.com/watch?v=…"
+            />
+          </Campo>
+          <Texto tamano="xs" tono="tenue">
+            Que sea corto. Es lo primero que ve alguien que llegó por un enlace de WhatsApp y
+            todavía no sabe si esto es una encuesta, un trámite o una campaña.
+          </Texto>
+        </Bloque>
+
+        <Bloque
+          titulo="La portada del candidato"
+          ayuda="Una banda con la foto, el cargo y el eslogan, arriba del todo en la página pública. Viene apagada."
+        >
+          <button
+            type="button"
+            role="switch"
+            aria-checked={datos.hero_candidato}
+            onClick={() => cambiar({ hero_candidato: !datos.hero_candidato })}
+            className="border-linea hover:border-tinta flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors"
+          >
+            <span
+              className={cn(
+                'flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                datos.hero_candidato ? 'bg-tinta' : 'bg-crema-2',
+              )}
+            >
+              <span
+                className={cn(
+                  'size-5 rounded-full bg-white shadow-sm transition-transform',
+                  datos.hero_candidato ? 'translate-x-5' : 'translate-x-0',
+                )}
+              />
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="text-fg-strong text-[0.9375rem] font-semibold">
+                {datos.hero_candidato ? 'Encendida' : 'Apagada'}
+              </span>
+              <span className="text-fg-muted text-[0.8125rem]">
+                {datos.hero_candidato
+                  ? 'La página abre con la cara del candidato, antes del titular.'
+                  : 'La página abre con «¿Qué necesita tu sector?».'}
+              </span>
+            </span>
+          </button>
+
+          {/* El costo, escrito al lado del interruptor y no en un documento que
+              nadie va a leer. Quien lo encienda que sepa lo que cambia. */}
+          <div className="bg-crema-2 flex flex-col gap-1 rounded-2xl px-4 py-3">
+            <Texto tamano="sm" peso="fuerte" tono="normal">
+              Antes de encenderla
+            </Texto>
+            <Texto tamano="sm">
+              La foto grande del candidato en lo primero que se ve es propaganda de cartelera, y a
+              mucha gente le activa el filtro anti-política: se va antes de mirar una sola obra. El
+              resto de la portada está armada al revés a propósito —primero el problema del barrio,
+              después quién lo va a resolver—. Si la campaña exige la foto arriba, aquí está; solo
+              conviene saber lo que cuesta.
+            </Texto>
+          </div>
         </Bloque>
 
         <Bloque
@@ -331,13 +405,7 @@ function FormularioPortada({
   );
 }
 
-function VistaPreviaHero({
-  datos,
-  nombreCiudad,
-}: {
-  datos: DatosDelPortal;
-  nombreCiudad: string;
-}) {
+function VistaPreviaHero({ datos, nombreCiudad }: { datos: DatosDelPortal; nombreCiudad: string }) {
   const conFoto = datos.hero_medio === 'foto' && datos.foto_hero_url;
 
   return (
@@ -364,7 +432,9 @@ function VistaPreviaHero({
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-[0.5rem] font-bold tracking-[0.06em] text-white uppercase">
               {datos.candidato_cargo || 'Cargo'}
-              {datos.partido && <span className="text-white/60 normal-case"> — {datos.partido}</span>}
+              {datos.partido && (
+                <span className="text-white/60 normal-case"> — {datos.partido}</span>
+              )}
             </span>
             <span className="truncate text-[0.5rem] text-white/60">
               {datos.candidato_nombre || 'Nombre'}
@@ -424,6 +494,7 @@ const PERFIL_NUEVO: PerfilDelEquipo = {
   telefono: null,
   correo: null,
   redes: {},
+  video_url: null,
   es_candidato: false,
 };
 
@@ -558,7 +629,10 @@ function EditorPerfiles({
                   onCambio={(url) => actualizar(i, { foto_url: url })}
                   ciudadId={ciudadId}
                 />
-                <Campo etiqueta="Quién es" ayuda="Dos o tres frases. Separa párrafos con una línea en blanco.">
+                <Campo
+                  etiqueta="Quién es"
+                  ayuda="Dos o tres frases. Separa párrafos con una línea en blanco."
+                >
                   <AreaTexto
                     valor={perfil.bio}
                     onCambio={(v) => actualizar(i, { bio: v })}
@@ -588,6 +662,16 @@ function EditorPerfiles({
                     valor={perfil.correo ?? ''}
                     onCambio={(v) => actualizar(i, { correo: v })}
                     placeholder="nombre@ejemplo.com"
+                  />
+                </Campo>
+                <Campo
+                  etiqueta="Video de presentación"
+                  ayuda="Enlace de YouTube. Sale como un botón de play en la ficha y se ve sin salir de la página. Solo se aceptan enlaces de YouTube."
+                >
+                  <Entrada
+                    valor={perfil.video_url ?? ''}
+                    onCambio={(v) => actualizar(i, { video_url: v })}
+                    placeholder="https://www.youtube.com/watch?v=…"
                   />
                 </Campo>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -719,7 +803,7 @@ function Entrada({
       value={valor}
       onChange={(e) => onCambio(e.target.value)}
       placeholder={placeholder}
-      className="border-linea focus:border-tinta h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-all focus:ring-3"
+      className="border-linea focus:border-tinta h-12 w-full rounded-xl border bg-white px-4 text-base transition-all outline-none focus:ring-3"
     />
   );
 }
@@ -744,7 +828,7 @@ function AreaTexto({
         onChange={(e) => onCambio(e.target.value.slice(0, maximo))}
         rows={filas}
         placeholder={placeholder}
-        className="border-linea focus:border-tinta w-full resize-none rounded-xl border bg-white px-4 py-3 text-base leading-relaxed outline-none transition-all focus:ring-3"
+        className="border-linea focus:border-tinta w-full resize-none rounded-xl border bg-white px-4 py-3 text-base leading-relaxed transition-all outline-none focus:ring-3"
       />
       <Texto tamano="xs" tono="tenue" className="cifra self-end">
         {valor.length}/{maximo}

@@ -104,6 +104,31 @@ begin
   perform pg_temp.chk('A7 — un medio de hero inventado se rechaza',
     v_r ->> 'error_code' = 'hero_medio_invalido', v_r ->> 'error_code');
 
+  -- ==================================== la portada del candidato, apagada ==
+  -- Si algún día nace encendida, cada ciudad nueva estrena la home con la foto
+  -- grande del candidato. Es justo lo que el diseño evita, así que se vigila.
+  select * into v_portal from public.portal where ciudad_id = v_ciudad;
+  perform pg_temp.chk('A7a — la portada del candidato nace APAGADA',
+    not v_portal.hero_candidato, v_portal.hero_candidato::text);
+
+  v_r := public.admin_portal_guardar(v_ciudad, jsonb_build_object('hero_candidato', true));
+  perform pg_temp.chk('A7b — el equipo la puede encender',
+    (select hero_candidato from public.portal where ciudad_id = v_ciudad), v_r::text);
+
+  -- Guardar otra pestaña no puede apagarla ni encenderla por omisión.
+  -- Se toca el subtítulo y NO el eslogan: A10 comprueba más abajo que el
+  -- eslogan sobrevivió a los intentos sin permiso, y pisarlo aquí haría fallar
+  -- una prueba que no tiene nada que ver con esto.
+  v_r := public.admin_portal_guardar(v_ciudad, jsonb_build_object('hero_subtitulo', 'Otro subtítulo'));
+  perform pg_temp.chk('A7c — un guardado parcial no la toca',
+    (select hero_candidato from public.portal where ciudad_id = v_ciudad),
+    (select hero_candidato::text from public.portal where ciudad_id = v_ciudad));
+
+  v_r := public.admin_portal_guardar(v_ciudad, jsonb_build_object('hero_candidato', false));
+  perform pg_temp.chk('A7d — y la puede volver a apagar',
+    (select not hero_candidato from public.portal where ciudad_id = v_ciudad),
+    (select hero_candidato::text from public.portal where ciudad_id = v_ciudad));
+
   perform pg_temp.act_as(v_candidato);
   v_r := public.admin_portal_guardar(v_ciudad, jsonb_build_object('eslogan', 'pisado'));
   perform pg_temp.chk('A8 — el candidato (solo lectura) NO puede guardar la portada',
@@ -124,7 +149,8 @@ begin
   v_r := public.ciudad_portada('el-triunfo');
   perform pg_temp.chk('A11 — ciudad_portada expone cédula, subtítulo y medio del hero',
     (v_r -> 'portal') ? 'cedula' and (v_r -> 'portal') ? 'hero_subtitulo'
-    and (v_r -> 'portal') ? 'hero_medio' and (v_r -> 'portal') ? 'foto_hero_url',
+    and (v_r -> 'portal') ? 'hero_medio' and (v_r -> 'portal') ? 'foto_hero_url'
+    and (v_r -> 'portal') ? 'hero_candidato',
     (v_r -> 'portal')::text);
 
   -- ========================================================== perfiles ==
@@ -169,6 +195,44 @@ begin
   ));
   perform pg_temp.chk('B7 — un nombre de una letra se rechaza',
     v_r ->> 'error_code' = 'nombre_muy_corto', v_r ->> 'error_code');
+
+  -- ============================================ video de presentación ==
+  -- El enlace acaba dentro de un iframe en la ficha pública, así que la lista
+  -- blanca se comprueba en la base y no solo en el formulario del panel.
+  v_r := public.admin_perfiles_guardar(v_ciudad, jsonb_build_array(
+    jsonb_build_object('id', v_id_perfil, 'nombre', 'María Zambrano', 'cargo', 'Coordinadora',
+                       'video_url', 'https://youtu.be/dQw4w9WgXcQ')
+  ));
+  perform pg_temp.chk('B7a — se guarda un enlace de YouTube',
+    (v_r ->> 'success')::boolean
+    and (select video_url from public.perfiles where id = v_id_perfil) = 'https://youtu.be/dQw4w9WgXcQ',
+    v_r::text);
+
+  perform pg_temp.chk('B7b — y llega a la ficha pública',
+    public.portal_perfil('el-triunfo', 'maria-zambrano') -> 'perfil' ->> 'video_url'
+      = 'https://youtu.be/dQw4w9WgXcQ',
+    public.portal_perfil('el-triunfo', 'maria-zambrano') -> 'perfil' ->> 'video_url');
+
+  v_r := public.admin_perfiles_guardar(v_ciudad, jsonb_build_array(
+    jsonb_build_object('id', v_id_perfil, 'nombre', 'María Zambrano', 'cargo', 'Coordinadora',
+                       'video_url', 'https://vimeo.com/12345')
+  ));
+  perform pg_temp.chk('B7c — un enlace que NO es de YouTube se rechaza',
+    v_r ->> 'error_code' = 'video_no_es_youtube', v_r ->> 'error_code');
+
+  perform pg_temp.chk('B7d — y el que ya estaba guardado no se pisó',
+    (select video_url from public.perfiles where id = v_id_perfil) = 'https://youtu.be/dQw4w9WgXcQ',
+    (select coalesce(video_url, 'null') from public.perfiles where id = v_id_perfil));
+
+  -- Vaciar el campo sí se acepta: es como el equipo quita un video.
+  v_r := public.admin_perfiles_guardar(v_ciudad, jsonb_build_array(
+    jsonb_build_object('id', v_id_perfil, 'nombre', 'María Zambrano', 'cargo', 'Coordinadora',
+                       'video_url', '')
+  ));
+  perform pg_temp.chk('B7e — mandarlo vacío quita el video',
+    (v_r ->> 'success')::boolean
+    and (select video_url is null from public.perfiles where id = v_id_perfil),
+    v_r::text);
 
   perform pg_temp.act_as(v_candidato);
   v_r := public.admin_perfiles_guardar(v_ciudad, '[]'::jsonb);

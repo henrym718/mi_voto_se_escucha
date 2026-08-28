@@ -21,6 +21,9 @@ import { Button } from '@/components/ui/button';
 import { usePortal } from '@/modules/shared/portal.provider';
 import { RUTAS } from '@/shared/config/rutas';
 
+import { BotonCompartirPerfil } from '../components/boton-compartir-perfil';
+import { VideoPresentacion } from '../components/video-presentacion';
+
 const suave = [0.22, 1, 0.36, 1] as const;
 
 const ICONO_RED: Record<string, typeof LinkIcon> = {
@@ -42,6 +45,7 @@ export interface Perfil {
   correo: string | null;
   redes: Record<string, string>;
   es_candidato: boolean;
+  video_url: string | null;
 }
 
 /**
@@ -110,11 +114,15 @@ export function PerfilView({ perfil }: { perfil: Perfil }) {
                 {ciudad.nombre}
                 {ciudad.provincia ? ` · ${ciudad.provincia}` : ''}
               </span>
-              {perfil.cedula && (
-                <span className="border-linea text-fg-muted rounded-full border px-3.5 py-1.5 text-[0.8125rem] font-semibold">
-                  Cédula: {perfil.cedula}
-                </span>
-              )}
+              {/* La cédula se sigue guardando en el panel —el equipo la
+                  necesita para los trámites del CNE— pero no se publica: es un
+                  dato personal y en la ficha no le sirve a nadie. */}
+              <VideoPresentacion url={perfil.video_url} nombre={perfil.nombre} />
+              <BotonCompartirPerfil
+                slug={perfil.slug}
+                nombre={perfil.nombre}
+                cargo={perfil.cargo}
+              />
             </div>
           </div>
         </div>

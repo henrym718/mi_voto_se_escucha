@@ -178,6 +178,13 @@ const RETRATO = (nombre) => `https://i.pravatar.cc/400?u=mvse-${nombre}`;
 
 /* ---------------------------------------------------------------- datos -- */
 
+// El video de presentación va solo en dos fichas y no en las cinco: así se ve
+// en la demo tanto la ficha con botón de play como la que no lo tiene, que es
+// como va a quedar un equipo de verdad. Son videos públicos y neutros —de
+// dominio público en el Internet Archive— porque en un ambiente de prueba no
+// se puede incrustar el video de nadie sin permiso.
+const VIDEO_DEMO = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ';
+
 const EQUIPO = [
   {
     slug: 'ramon-peralta',
@@ -185,6 +192,7 @@ const EQUIPO = [
     cargo: 'Candidato a la Alcaldía de El Triunfo',
     bio: 'Ficha de demostración. Aquí va quién es el candidato, a qué se ha dedicado y por qué se presenta. Todo este ambiente contiene datos inventados.',
     es_candidato: true,
+    video_url: VIDEO_DEMO,
   },
   {
     slug: 'doris-chalen',
@@ -192,6 +200,7 @@ const EQUIPO = [
     cargo: 'Coordinadora de barrios',
     bio: 'Ficha de demostración. Recorre los sectores, levanta los pedidos que llegan en asamblea y los sube al sistema.',
     es_candidato: false,
+    video_url: VIDEO_DEMO,
   },
   {
     slug: 'wilmer-aguayo',
@@ -448,6 +457,7 @@ async function main() {
       telefono: `+5939${entero(10, 99)}${entero(100000, 999999)}`,
       correo: `${p.slug}@ejemplo.test`,
       redes: { facebook: `https://facebook.com/${p.slug}` },
+      video_url: p.video_url ?? null,
       orden: i,
     })),
   );
@@ -559,6 +569,29 @@ async function main() {
       aprobada_por: autor,
     })),
   );
+
+  /* -------------------------------------------------- fotos de las obras -- */
+
+  // Las 49 obras del PDOT entran por el seed sin foto —nadie las fotografió,
+  // salieron de un documento— y en la lista se veían todas con el cuadrado gris
+  // del puesto. Aquí se les pone una para que el listado se parezca al que va a
+  // haber cuando la gente publique.
+  //
+  // No a todas: una de cada siete se queda sin foto a propósito. Un vecino
+  // escribiendo desde el celular a veces manda solo texto, y el diseño de la
+  // tarjeta sin foto tiene que verse en la demo igual que se va a ver en
+  // producción.
+  const sinFoto = await leer(
+    'obras',
+    `ciudad_id=eq.${ciudad.id}&foto_url=is.null&rechazada_en=is.null&select=id&order=creada_en`,
+  );
+  const aFotografiar = sinFoto.filter((_, i) => i % 7 !== 3);
+  console.log(`  · poniendo foto a ${aFotografiar.length} de ${sinFoto.length} obras…`);
+
+  await enParalelo(aFotografiar, 5, async (obra, i) => {
+    const url = await subirFoto('obras', `demo/obra-${i}.jpg`, PICSUM(`obra-${i}`, 1200, 900));
+    if (url) await actualizar('obras', `id=eq.${obra.id}`, { foto_url: url });
+  });
 
   /* ------------------------------------------------------------ apoyos -- */
 
@@ -684,6 +717,9 @@ async function main() {
   console.log(`  vecinos       ${await cuenta('vecinos', `ciudad_id=eq.${ciudad.id}`)}`);
   console.log(`  apoyos        ${votos.length}`);
   console.log(`  obras         ${await cuenta('obras', `ciudad_id=eq.${ciudad.id}`)}`);
+  console.log(
+    `  con foto      ${await cuenta('obras', `ciudad_id=eq.${ciudad.id}&foto_url=not.is.null`)}`,
+  );
   console.log(
     `  en la cola    ${await cuenta('obras', `ciudad_id=eq.${ciudad.id}&aprobada=eq.false&rechazada_en=is.null`)}`,
   );

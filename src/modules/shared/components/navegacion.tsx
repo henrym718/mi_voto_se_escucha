@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { Home, ListOrdered, Plus, Users } from 'lucide-react';
+import { FileText, Home, ListOrdered, Plus, Users } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { RUTAS } from '@/shared/config/rutas';
@@ -12,6 +12,10 @@ import { cn } from '@/shared/lib/utils';
 const ENLACES = [
   { href: RUTAS.publico.inicio, etiqueta: 'Inicio', Icono: Home },
   { href: RUTAS.publico.obras, etiqueta: 'Obras', Icono: ListOrdered },
+  // Fija y no condicionada a tener pedidos: quien acaba de publicar tiene que
+  // encontrar dónde volver sin buscarlo, y averiguar si tiene propuestas
+  // costaría una consulta en cada pantalla del sitio.
+  { href: RUTAS.publico.misPropuestas, etiqueta: 'Mis propuestas', Icono: FileText },
   { href: RUTAS.publico.perfiles, etiqueta: 'Perfiles', Icono: Users },
 ] as const;
 

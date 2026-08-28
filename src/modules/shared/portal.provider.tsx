@@ -2,10 +2,10 @@
 
 import { type ReactNode, createContext, useCallback, useContext, useMemo, useState } from 'react';
 
+import { useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
 import { HojaContacto } from '@/modules/identidad/components/hoja-contacto';
 import { useSesionAnonima, useVecino } from '@/modules/identidad/hooks/use-identidad';
-import { sectorLocal } from '@/modules/identidad/services/identidad.service';
-import { useCiudadelas } from '@/modules/catalogo/hooks/use-catalogo';
+import { origenLocal, sectorLocal } from '@/modules/identidad/services/identidad.service';
 
 export interface DatosCiudad {
   id: string;
@@ -27,12 +27,16 @@ export interface DatosPortal {
   hero_subtitulo: string;
   /** Si hay video, la portada ofrece verlo en un modal en vez de ocupar pantalla. */
   hero_medio: 'foto' | 'video';
+  /** Enciende la banda del candidato al abrir la portada. Nace apagada. */
+  hero_candidato: boolean;
   bio: string;
   foto_url: string | null;
   foto_hero_url: string | null;
   banner_url: string | null;
   video_url: string | null;
   video_portada_url: string | null;
+  /** YouTube. Se abre solo la primera visita. Vacío = no aparece nada. */
+  video_bienvenida_url: string | null;
   logo_url: string | null;
   color_marca: string;
   redes: Record<string, string>;
@@ -95,6 +99,25 @@ export function PortalProvider({
   // ya sale con el barrio del vecino y no con "todo el cantón" un instante.
   const [sector, setSector] = useState<string | null>(() => sectorLocal.leer());
 
+  // El cartel lleva `?via=qr`. Se anota en el navegador la primera vez y se
+  // lee de ahí a partir de entonces: el parámetro se pierde en la primera
+  // navegación y el teléfono se deja mucho después.
+  //
+  // Se lee de `window` y NO con useSearchParams: ese hook obliga a envolver el
+  // árbol en un <Suspense> y, sin él, el build tumba todas las páginas
+  // públicas. Aquí el dato solo hace falta en el navegador, así que no vale la
+  // pena arrastrar esa condición hasta el layout.
+  const [origenRecordado] = useState<'directo' | 'qr' | 'compartido'>(() => {
+    if (typeof window === 'undefined') return origen;
+    const via = new URLSearchParams(window.location.search).get('via');
+    if (via === 'qr' || via === 'compartido') {
+      origenLocal.guardar(via);
+      return via;
+    }
+    const guardado = origenLocal.leer();
+    return guardado !== 'directo' ? guardado : origen;
+  });
+
   const { data: sesion } = useSesionAnonima();
   const { data: vecino } = useVecino(Boolean(sesion));
   const { data: ciudadelas = [] } = useCiudadelas(ciudad.id);
@@ -138,7 +161,7 @@ export function PortalProvider({
         ciudadelas={ciudadelas}
         sectorSugerido={sector ?? vecino?.ciudadela_id ?? null}
         motivo={motivo}
-        origen={origen}
+        origen={origenRecordado}
       />
     </PortalContext.Provider>
   );

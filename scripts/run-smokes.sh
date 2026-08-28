@@ -47,6 +47,7 @@ SUITES=(
   smoke-territorio
   smoke-rls
   smoke-voto
+  smoke-orden
   smoke-pedidos
   smoke-panel
   smoke-portal

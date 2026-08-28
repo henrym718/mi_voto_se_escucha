@@ -1,18 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import {
   DndContext,
+  type DragEndEvent,
   DragOverlay,
+  type DragStartEvent,
   PointerSensor,
   TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
 } from '@dnd-kit/core';
 import { AlertTriangle, Film, Loader2 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -119,13 +119,11 @@ export function TableroView({ ciudadId, puedeEditar }: Props) {
         </div>
       ) : (
         <DndContext sensors={sensores} onDragStart={alEmpezar} onDragEnd={alSoltar}>
-          {/* En escritorio es un tablero horizontal; en móvil, columnas que se
-              desplazan a lo ancho con el dedo. La misma estructura, sin duplicar. */}
-          <div className="sin-barra -mx-4 flex gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0">
+          <Desplazable>
             {columnas.map((columna) => (
               <Columna key={columna.id} columna={columna} puedeEditar={puedeEditar} />
             ))}
-          </div>
+          </Desplazable>
 
           <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }}>
             {arrastrando && (
@@ -152,6 +150,70 @@ export function TableroView({ ciudadId, puedeEditar }: Props) {
   );
 }
 
+/**
+ * La zona de desplazamiento del tablero. Hace tres cosas que el `overflow-auto`
+ * pelado de antes no hacía:
+ *
+ * 1. Ocupa TODO el ancho de la zona de contenido. Las demás pantallas se leen
+ *    mejor con un ancho máximo, pero un kanban con ese tope desperdicia media
+ *    pantalla en un monitor y esconde una columna que cabría. El `100cqw` mide
+ *    el `<main>` del panel, así que la barra lateral no entra en la cuenta.
+ *
+ * 2. Enseña la barra de desplazamiento. Estaba oculta con `sin-barra`: en un
+ *    teléfono da igual porque se arrastra con el dedo, pero en un PC el tablero
+ *    aparecía cortado por la izquierda sin ninguna pista de que había más y de
+ *    cómo volver.
+ *
+ * 3. Se pasea arrastrando con el ratón, como cualquier kanban. Solo agarra
+ *    fuera de una tarjeta —encima de una manda dnd-kit— y solo con ratón: en
+ *    táctil el desplazamiento nativo ya funciona y capturar el puntero se lo
+ *    quitaría.
+ */
+function Desplazable({ children }: { children: React.ReactNode }) {
+  const caja = useRef<HTMLDivElement>(null);
+  const paneo = useRef({ activo: false, desdeX: 0, desdeScroll: 0 });
+  const [agarrando, setAgarrando] = useState(false);
+
+  function alPresionar(e: React.PointerEvent<HTMLDivElement>) {
+    const el = caja.current;
+    if (!el || e.pointerType !== 'mouse' || e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('[data-arrastrable="true"]')) return;
+
+    paneo.current = { activo: true, desdeX: e.clientX, desdeScroll: el.scrollLeft };
+    setAgarrando(true);
+    el.setPointerCapture(e.pointerId);
+  }
+
+  function alMover(e: React.PointerEvent<HTMLDivElement>) {
+    if (!paneo.current.activo || !caja.current) return;
+    caja.current.scrollLeft = paneo.current.desdeScroll - (e.clientX - paneo.current.desdeX);
+  }
+
+  function alSoltar(e: React.PointerEvent<HTMLDivElement>) {
+    if (!paneo.current.activo) return;
+    paneo.current.activo = false;
+    setAgarrando(false);
+    caja.current?.releasePointerCapture(e.pointerId);
+  }
+
+  return (
+    <div
+      ref={caja}
+      onPointerDown={alPresionar}
+      onPointerMove={alMover}
+      onPointerUp={alSoltar}
+      onPointerCancel={alSoltar}
+      style={{ marginInline: 'calc((100% - 100cqw) / 2)', width: '100cqw' }}
+      className={cn(
+        'barra-tablero flex gap-3 overflow-x-auto px-4 pb-3 md:px-8',
+        agarrando ? 'cursor-grabbing select-none' : 'cursor-grab',
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 function Columna({ columna, puedeEditar }: { columna: ColumnaTablero; puedeEditar: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: columna.id, disabled: !puedeEditar });
 
@@ -164,7 +226,10 @@ function Columna({ columna, puedeEditar }: { columna: ColumnaTablero; puedeEdita
       )}
     >
       <div className="flex items-center gap-2 px-1.5 pt-1">
-        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: columna.color }} />
+        <span
+          className="size-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: columna.color }}
+        />
         <span className="text-fg-strong truncate text-[0.875rem] font-bold">{columna.nombre}</span>
         <span className="cifra text-fg-muted ml-auto rounded-full bg-white px-2 py-0.5 text-[0.7rem] font-bold">
           {columna.total}
@@ -210,6 +275,9 @@ function TarjetaArrastrable({ obra, puedeEditar }: { obra: TarjetaTablero; puede
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      // Se lo mira el desplazamiento por arrastre del tablero para apartarse:
+      // encima de una tarjeta manda dnd-kit, no el paneo.
+      data-arrastrable="true"
       className={cn(
         'border-linea rounded-xl border bg-white p-3 transition-opacity',
         puedeEditar && 'cursor-grab active:cursor-grabbing',
@@ -224,14 +292,14 @@ function TarjetaArrastrable({ obra, puedeEditar }: { obra: TarjetaTablero; puede
 function Tarjeta({ obra }: { obra: TarjetaTablero }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-fg-strong text-[0.875rem] leading-snug font-semibold">{obra.titulo}</span>
+      <span className="text-fg-strong text-[0.875rem] leading-snug font-semibold">
+        {obra.titulo}
+      </span>
       <span className="text-fg-subtle text-[0.7rem]">
         {obra.ciudadela} · {obra.categoria}
       </span>
       <div className="flex items-center justify-between gap-2">
-        <span className="cifra text-teal text-[0.8125rem] font-bold">
-          {cifra(obra.apoyos)}
-        </span>
+        <span className="cifra text-teal text-[0.8125rem] font-bold">{cifra(obra.apoyos)}</span>
         <div className="flex items-center gap-1.5">
           {obra.tiene_media && <Film className="text-fg-faint size-3.5" />}
           {/* La señal que le dice al equipo dónde está quedando mal. */}
