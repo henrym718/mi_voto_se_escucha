@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Loader2, ThumbsUp } from 'lucide-react';
+import { Check, ThumbsUp } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,10 @@ export function BotonApoyar({
     >
       {/* El pulgar arriba es el gesto de "yo también": se entiende sin leer,
           que es justo lo que hace falta en el botón más importante. */}
-      {cargando ? <Loader2 className="animate-spin" /> : yaApoyada ? <Check /> : <ThumbsUp />}
+      {/* Sin ruedita de carga: el apoyo ya se aplicó a la caché al tocar, así que
+          el check está antes de que conteste el servidor. El spinner solo metía
+          un parpadeo entre el toque y un resultado que ya estaba en pantalla. */}
+      {yaApoyada ? <Check /> : <ThumbsUp />}
 
       <span>{yaApoyada ? 'Ya apoyaste' : 'Apoyar'}</span>
 

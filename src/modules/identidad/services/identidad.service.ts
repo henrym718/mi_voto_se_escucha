@@ -48,6 +48,29 @@ export const sectorLocal = {
   guardar: (id: string) => escribirLocal(CLAVE_SECTOR, id),
 };
 
+const CLAVE_ORIGEN = 'mvse:origen';
+type Origen = 'directo' | 'qr' | 'compartido';
+
+/**
+ * De dónde vino el vecino, recordado hasta que deje su número.
+ *
+ * El `?via=qr` del cartel solo viaja en la PRIMERA dirección que abre: en
+ * cuanto toca una obra, se pierde, y el número lo deja bastante después. Sin
+ * guardarlo aquí, la columna `vecinos.origen` diría «directo» para todo el
+ * mundo y no habría forma de saber si los cinco mil adhesivos sirvieron.
+ */
+export const origenLocal = {
+  leer: (): Origen => {
+    const v = leerLocal(CLAVE_ORIGEN);
+    return v === 'qr' || v === 'compartido' ? v : 'directo';
+  },
+  guardar: (v: Origen) => {
+    // 'directo' no se escribe: sería pisar un 'qr' guardado antes con el valor
+    // por defecto de cualquier visita posterior.
+    if (v !== 'directo') escribirLocal(CLAVE_ORIGEN, v);
+  },
+};
+
 /**
  * Devuelve la sesión, creándola si hace falta.
  *

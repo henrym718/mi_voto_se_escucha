@@ -21,6 +21,7 @@ export const RUTAS = {
     canales: '/panel/canales',
     estados: '/panel/estados',
     catalogo: '/panel/catalogo',
+    difusion: '/panel/difusion',
     contenido: '/panel/contenido',
     entrar: '/panel/entrar',
   },
