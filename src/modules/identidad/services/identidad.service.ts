@@ -82,11 +82,40 @@ export async function asegurarSesion() {
   const supabase = supabaseNavegador();
 
   const { data } = await supabase.auth.getSession();
-  if (data.session) return data.session;
+  if (data.session && (await sesionSigueViva(supabase))) return data.session;
+
+  // La sesión vieja ya no vale para nada: se descarta antes de pedir otra, o
+  // `signInAnonymously` se encuentra con un token puesto y no crea nada.
+  if (data.session) await supabase.auth.signOut();
 
   const { data: nueva, error } = await supabase.auth.signInAnonymously();
   if (error) throw new Error(error.message);
   return nueva.session;
+}
+
+/**
+ * Si el usuario del token todavía existe en el servidor.
+ *
+ * `getSession` solo lee lo que hay guardado en el navegador: no pregunta nada.
+ * Cuando la base se resetea —o se limpian las sesiones anónimas— el token sigue
+ * ahí, sin caducar, apuntando a un usuario que ya no está. Todo parece normal
+ * hasta que el vecino toca Apoyar y la base rechaza el alta contra `auth.users`.
+ * Era el 409 de "No pudimos registrar tu apoyo": un mensaje que invitaba a
+ * reintentar algo que no podía funcionar nunca.
+ *
+ * `getUser` sí va al servidor, y es lo único que distingue "no hay sesión" de
+ * "hay una sesión que ya no existe".
+ */
+async function sesionSigueViva(supabase: ReturnType<typeof supabaseNavegador>) {
+  const { error } = await supabase.auth.getUser();
+  if (!error) return true;
+
+  // Un corte de red NO es una sesión muerta. La identidad anónima es lo único
+  // que tiene el vecino —sus apoyos cuelgan de ella—, así que solo se tira
+  // cuando el servidor contesta que ese usuario ya no vale.
+  const laRechazoElServidor =
+    typeof error.status === 'number' && error.status >= 400 && error.status < 500;
+  return !laRechazoElServidor;
 }
 
 export interface Vecino {
